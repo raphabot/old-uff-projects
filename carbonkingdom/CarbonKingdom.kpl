@@ -1,0 +1,3090 @@
+
+Program CarbonKingdom	
+	Var villaId As Integer = 0
+	Var pcVillaId As Integer = 0
+	Var populacaoId As Integer = 0
+	Var usinaId As Integer = 0
+	Var propostaId As Integer=0
+	Var financiamentoId As Integer=0	
+	
+	Constant maxPcVilla As Integer = 10	
+	
+	Class Letreiro
+		Define painel As Painel
+		Private Define fila	As GenericQueue
+		
+		Method adicionaTexto(texto As String)
+			fila.Add(texto)
+		End Method
+		Method troca()
+			If(fila.Count>0) Then
+				painel.imprime(fila.Pop(),Colors.Black,0)
+			End If
+		End Method
+	End Class
+	
+	Class TextBox
+		Var Text 		As String		// User input
+		Var Location	As Point		// Screen location (Left, Top)
+		Var Size		As Point		// Screen size (Width, Height)
+		Var MaxTextLength	As Integer	// Maximum text length
+		Var Tick		As Integer	// Yield time delay
+		Var FontWidth	As Integer = 8	// Screen font size (hard coded)
+		Var label As String
+		
+		Method Draw()
+			BeginFrame()
+			// Clear background
+			Color(Colors.White)
+			Pen(False)
+			MoveTo(Location.X, Location.Y+20)
+			Rectangle(Size.X, Size.Y, True)
+			// Draw border
+			Color(Colors.Black)
+			Rectangle(Size.X, Size.Y, False)						
+			// Draw text
+			//SetFont(Fonts.LucidaConsole  , FontWidth, False, False, False)
+			MoveBy(2, 3)
+			Print(text)
+			Color(Colors.WHITE)
+			If(Not Compare(label,"",True)=0) Then
+				PrintInRectangle(label,Location.X,Location.Y,Size.X,Size.Y)
+				label=""
+			End If
+		End Method
+		
+		Method Init(Location As Point, Size As Point,label As String)
+			Me.Location = Location.Clone()
+			Me.Size = Size.Clone()
+			This.label = label			
+			Text = "_"
+			MaxTextLength = Floor(Size.X / (fontWidth * .76)) 
+		End Method
+		
+		// Get user input (non-blocking)
+		Method Add(Key As String)
+			Var prev 		As String = text
+			If Length(Key) = 1 Then
+				If Length(text) < MaxTextLength Then
+					Text = SubString(text, 1, Length(text) - 1) + key + "_"
+				End If
+				ElseIf Key = Keys.Back  Or Key = Keys.Delete Then
+				If Length(text) > 1 Then
+					Text = SubString(text, 1, Length(text) - 2) + "_"
+				End If
+				ElseIf Key = keys.Enter Then
+				Text = SubString(text, 1, Length(text) - 1)
+			End If
+			If prev <> text Then
+				Draw()
+				RefreshScreen()
+			End If
+		End Method
+
+		// Get user input (blocking)
+		Function Input() As String 
+			Var key 		As String
+			Text = "_"
+			Draw()
+			While key <> Keys.Enter
+				Yield()
+				key = Getkey()
+				Add(key)			
+			End While
+			Return Text
+		End Function
+		
+		// Avoids excessive CPU usage
+		Method Yield()
+			Delay(1)
+			DoEvents()
+			If math.Abs(tickCount() - Tick) > 2000 Then
+				Tick = TickCount()
+				RefreshScreen()
+			End If
+		End Method
+	End Class
+	
+	Class RoundedRectangle
+		Define x As Integer
+		Define y As Integer
+		Define Width As Integer 
+		Define Height As Integer
+		Define RedComponent As Integer 
+		Define GreenComponent As Integer 
+		Define BlueComponent As Integer 
+		
+		Method Create ( Left As Integer , Top As Integer , W As Integer , H As Integer , R As Integer , G As Integer , B As Integer  )
+			x = Left
+			y = Top
+			Width = W
+			Height = H
+			RedComponent = R
+			GreenComponent = G
+			BlueComponent = B
+		End Method
+
+		Method Draw ( )
+			Define Radius As Integer = GetRadius ( )
+			
+			Color ( GetColor ( RedComponent, GreenComponent, BlueComponent ))
+			
+			// Draw the four corners
+			JumpTo ( x + Radius, y + Radius )
+			Circle ( Radius*2, True )
+			
+			JumpTo ( x + Width - Radius, y + Radius )
+			Circle ( Radius*2, True )
+			
+			JumpTo ( x + Radius, y + Height - Radius )
+			Circle ( Radius*2, True )
+			
+			JumpTo ( x + Width - Radius, y + Height - Radius )
+			Circle ( Radius*2, True )
+			
+			// Draw 2 rectangles to fill in the space.
+			JumpTo ( x + Radius, y )
+			Rectangle ( Width - 2*Radius, Height, True )
+			
+			JumpTo ( x, y + Radius )
+			Rectangle ( Width, Height - 2 * Radius, True )
+				
+		End Method
+		
+		Method DrawShaded (  )
+			Define Rect As RoundedRectangle
+		
+			Define R As Integer
+			Define G As Integer
+			Define B As Integer
+			
+			// Draw the highlight.
+			R = RedComponent + 2*( 255 - RedComponent )/3
+			G = GreenComponent + 2*( 255 - GreenComponent )/3
+			B = BlueComponent + 2*( 255 - BlueComponent )/3
+			Rect.Create ( x - 1, y - 1, Width + 1, Height + 1, R, G, B )
+			Rect.Draw ( )
+			
+			// Draw the shadow.
+			R = RedComponent/2
+			G = GreenComponent/2
+			B = BlueComponent/2
+			Rect.Create ( x + 2, y + 2, Width + 2, Height + 2, R, G, B )
+			Rect.Draw ( )
+			
+			// Draw the rectangle.
+			Rect.Create ( x, y, Width, Height, RedComponent, GreenComponent, BlueComponent )
+			Rect.Draw ( )
+		End Method
+
+		Function GetRadius ( ) As Integer 
+			If Height <= Width Then
+				Return Height/4
+			Else
+				Return Width/4
+			End If
+		End Function
+		
+		Method JumpTo ( x As Integer , y As Integer )
+			DrawLine ( x, y, x, y )
+		End Method
+		
+	End Class
+	
+	Class Button 
+		Define x As Integer
+		Define y As Integer 
+		Define image As Sprite
+		Define Height As Integer = 20
+		Define Rect As RoundedRectangle 
+
+		
+		
+		Private Method JumpTo ( x As Integer , y As Integer )
+			DrawLine ( x, y, x, y)
+		End Method
+
+		
+		Method setup( Size As Integer, Bold As Boolean, R As Integer, G As Integer, B As Integer, BackgroundColor As Integer, Text As String, Width As Integer , X As Decimal, Y As Decimal)
+			// Draws a button in the specified color. The button is then
+			// captured as a sprite and returned.
+			
+			This.x =x
+			This.y =y
+			Color ( BackgroundColor )
+			JumpTo ( x - 2, y - 2 )
+			Rectangle ( Width + 6, Height + 6, True)
+		
+			// Color the button.
+			Rect.Create ( x, y, Width, Height, R, G, B )
+			Rect.DrawShaded ( )
+		
+			// Print the button text.
+			Pen ( False )
+			MoveTo ( x, y - 2 )
+			Pen ( True )
+			Color ( Black ) 
+			SetFont ( ComicSansMS, Size, Bold, False, False )
+			Print ( " " + Text )
+		
+			// Capture the button as a sprite.
+			image = CaptureSprite ( x - 2, y - 2, Width + 6, Height + 6 )
+
+			// Clear the area where the button was drawn.
+			Color ( BackgroundColor )
+			JumpTo ( x - 2, y - 2 )
+			Rectangle ( Width + 6, Height + 6, True)
+			
+			image.X = This.x
+			image.Y = This.y
+			image.Show()
+			
+		End Method
+		
+		Function isClick() As Boolean
+			Return image.ContainsPoint(MouseX,MouseY)
+		End Function
+		
+		Function isOver() As Boolean
+			Return image.ContainsPoint(MouseX,MouseY)
+		End Function
+	End Class
+	
+	Class Painel
+		Var isVisible As Boolean = False
+		Var width As Integer
+		Var heigth As Integer
+		Var X As Decimal
+		Var Y As Decimal
+		Var lineHeigth As Integer
+		Var backgroundImg As Sprite
+		Var backgroundColor As Integer	
+		Private Var linha As Integer
+		Private Var ultimaLinha As Integer
+		Var windowBackground As Integer = Colors.White
+		Private Var proximaLinha As Integer
+		
+		Method setup(X As Decimal , Y As Decimal , width As Integer ,numLinhas As Integer , lineHeigth As Integer , backgroundColor As Integer )
+			This.X = X
+			This.Y = Y
+			This.width = width
+			This.heigth = (numLinhas*(lineHeigth+0))
+			This.lineHeigth = lineHeigth
+			This.backgroundColor = backgroundColor	
+			This.linha = 0
+			This.ultimaLinha=numLinhas
+			This.proximaLinha = 0
+			Drawing.Color(This.backgroundColor)
+			Drawing.Pen(False)
+			Drawing.MoveTo(This.X,This.Y)
+			Rectangle(This.width,This.heigth,True)
+			This.isVisible = True
+		End Method
+		
+		Method imprime(texto As String, color As Integer, posicao As Integer)			
+			Drawing.Color(This.backgroundColor)
+			Drawing.Pen(False)			
+			Drawing.MoveTo(This.X,This.Y + (posicao*(This.lineHeigth+0)))
+			Rectangle(This.width,This.lineHeigth+0,True)
+			Drawing.Color(color)						
+			PrintInRectangle(texto,This.X, This.Y + (posicao*(This.lineHeigth+0)),This.width,This.lineHeigth+0)
+			RefreshScreen()	
+			If(posicao >= This.ultimaLinha)Then
+				This.ultimaLinha = posicao
+			End If		
+			proximaLinha = posicao+1
+		End Method
+		
+		Method imprime(texto As String, color As Integer)			
+			Drawing.Color(This.backgroundColor)
+			Drawing.Pen(False)			
+			Drawing.MoveTo(This.X,This.Y + (proximaLinha*(This.lineHeigth+0)))
+			Rectangle(This.width,This.lineHeigth+0,True)
+			Drawing.Color(color)						
+			PrintInRectangle(texto,This.X, This.Y + (proximaLinha*(This.lineHeigth+0)),This.width,This.lineHeigth+0)
+			RefreshScreen()	
+			If(This.proximaLinha >= This.ultimaLinha)Then
+				This.proximaLinha = 1
+				This.apagar()
+			End If			
+		End Method
+		
+		Method clear()
+			Var i As Integer
+			For i=1 To This.ultimaLinha
+				This.imprime("",colors.White,i)
+			Next
+		End Method
+		
+		Method apagar()
+			BeginFrame()
+			// Clear background			
+			Color(This.windowBackground)
+			Pen(False)
+			MoveTo(X, Y)
+			If lineHeigth * (ultimaLinha) >= This.heigth Then
+				Rectangle(width, lineHeigth * (ultimaLinha+1), True)
+			Else
+				Rectangle(width, This.heigth, True)
+			End If
+			This.isVisible = False
+			RefreshScreen()
+		End Method
+	End Class
+		
+	Class Game		
+		Define jogador As Jogador
+		Define pcVillas As GenericList
+		Define banco As Banco
+		Define usinas As GenericList
+		Var nivel As Integer
+		Var nivelPc As Integer
+		Var mesAtual As Integer
+		Var windowBackground As Integer = Colors.White
+		Var isPlaying As Boolean = True
+		
+		Method setup(nivel As Integer, nivelPc As Integer , mesAtual As Integer,banco As Banco)							
+			This.banco = banco
+			This.nivel = nivel
+			This.mesAtual = mesAtual
+			This.nivelPc = nivelPc
+			
+			jogador.villa.historico.registraDinheiro(jogador.villa.dinheiro)
+		End Method
+		
+		Method pause()
+			This.isPlaying = False
+		End Method
+		
+		Method play()
+			This.isPlaying = True
+		End Method
+		
+		Method addPcVilla(pcVilla As PcVilla)
+			//Adiciona uma Jogador Controlado pelo pc ao vetor
+			This.pcVillas.Add(pcVilla)
+		End Method
+		Method addUsina(usina As Usina)
+			//Adiciona uma usina ao Jogo,Disponibilizando-a para os jogadores
+			This.usinas.Add(usina)
+		End Method
+		Function getUsinaById(id As Integer) As Usina
+			//Pega Usina pelo Identificador
+			Return This.usinas.Item(id)
+		End Function
+		Function copyUsina(id As Integer) As Usina
+			Var usina As Usina						
+			usina.custoInicial = This.getUsinaById(id).custoInicial
+			usina.custoMensal = This.getUsinaById(id).custoMensal
+			usina.energiaProduzida = This.getUsinaById(id).energiaProduzida
+			usina.grauPoluicao = This.getUsinaById(id).grauPoluicao
+			usina.id = This.getUsinaById(id).id
+			usina.image = This.getUsinaById(id).image
+			usina.nome = This.getUsinaById(id).nome
+			Return usina
+		End Function
+		
+		Function getPcVillaByIndex(Index As Integer) As PcVilla
+			//Pega Jogador Pc pela posicao no vetor de jogadores que sau controlados pelo pc
+			Return pcVillas.Item(index)
+		End Function
+		Function getPcVillaById(id As Integer) As PcVilla
+			//Busca jogador Pc, pelo identificador
+			Var i As Integer = 0
+			Var flagAcho As Boolean = False
+			For i=1 To This.pcVillas.Count
+				If(This.getPcVillaByIndex(i).id = id) Then
+					flagAcho=True
+					Break
+				End If
+			Next
+			If(Not flagAcho) Then
+				i=0
+			End If
+			Return This.getPcVillaByIndex(i)
+		End Function
+		
+		Method finalizaMes()
+			//Atualiza dados do jogo e incrementa o mes
+			jogador.villa.calculaPoluicao()
+			jogador.villa.pagaUsinas()			
+			jogador.villa.calculaPopulacao()
+			jogador.villa.dinheiro+=jogador.villa.populacao.recolherImpostos()
+			jogador.villa.calculaTaxa()			
+			jogador.villa.historico.registraDinheiro(jogador.villa.dinheiro)
+			jogador.villa.historico.registraPopulacao(jogador.villa.populacao)
+			jogador.villa.historico.registraEnergia(jogador.villa.calculaEnergia())
+			jogador.villa.historico.registraCarbono(jogador.villa.creditoCarbono)
+			
+			If(jogador.villa.dinheiro<0)Then
+				jogador.villa.dinheiro = jogador.villa.dinheiro*(banco.taxaJuros+0.05)
+			End If
+			
+			Var i As Integer =1
+			For i=1 To pcVillas.Count
+				This.getPcVillaById(i).villa.calculaPoluicao()
+				This.getPcVillaById(i).villa.pagaUsinas()
+				This.getPcVillaById(i).villa.calculaPopulacao()
+				This.getPcVillaById(i).villa.dinheiro+=This.getPcVillaById(i).villa.populacao.recolherImpostos()
+				This.getPcVillaById(i).villa.calculaTaxa()
+				This.getPcVillaById(i).villa.historico.registraDinheiro(This.getPcVillaById(i).villa.dinheiro)
+				This.getPcVillaById(i).villa.historico.registraPopulacao(This.getPcVillaById(i).villa.populacao)
+				This.getPcVillaById(i).villa.historico.registraEnergia(This.getPcVillaById(i).villa.calculaEnergia())
+				This.getPcVillaById(i).villa.historico.registraCarbono(This.getPcVillaById(i).villa.creditoCarbono)
+				
+				If(jogador.villa.dinheiro<0)Then
+					This.getPcVillaById(i).villa.dinheiro = jogador.villa.dinheiro*(banco.taxaJuros+0.05)
+				End If
+			Next
+			banco.cobraFinanciamentos(This.mesAtual)					
+			
+			This.mesAtual+=1
+		End Method
+	End Class
+	
+	Class Jogador
+		Var id As Integer
+		Define villa As Villa	
+		Constant painelX As Integer=3
+		Constant painelY As Integer=250
+		Constant painelWidth As Integer = 200
+		
+		Method setup(id As Integer , villa As Villa)
+			This.id = id
+			This.villa = villa
+		End Method
+		
+		Method checkPropostas(mesAtual As Integer)
+			//Pede para o Jogador aceitar ou nao um proposta feita para o mesmo, cujo status esta em aberto
+			Var i As Integer
+			Var texto As String
+			For i=1 To This.villa.propostas.Count
+				If(This.villa.getPropostaByIndex(i).getStatusIndex() = This.villa.getPropostaByIndex(i).ABERTO) Then
+					If(This.villa.getPropostaByIndex(i).getDestinatario().id = This.villa.id) Then // Apenas se ele nao for o remetente
+						texto="Realizada por "+This.villa.getPropostaByIndex(i).getRemetente().nome+"\n"						
+						//If (This.villa.getPropostaByIndex(i).comprador = This.villa) Then
+						//	texto+="Trocar "+This.villa.SIMBOLO_MOEDA+" "+This.villa.getPropostaByIndex(i).dinheiro+" por "+This.villa.getPropostaByIndex(i).creditoCarbono+" de carbono" 
+						//Else
+						//	texto+="Trocar "+This.villa.getPropostaByIndex(i).creditoCarbono+" de carbonon por "+This.villa.SIMBOLO_MOEDA+" "+This.villa.getPropostaByIndex(i).dinheiro
+						//End If
+						If(This.villa.getPropostaByIndex(i).flagVenda)Then//Caso seja venda de carbono
+							texto+="Ele da "+This.villa.getPropostaByIndex(i).creditoCarbono+" de carbono\n" 
+							texto+="VC da "+This.villa.SIMBOLO_MOEDA+" "+This.villa.getPropostaByIndex(i).dinheiro
+						Else
+							texto+="VC da "+This.villa.getPropostaByIndex(i).creditoCarbono+" de carbono\n" 
+							texto+="Ele da "+This.villa.SIMBOLO_MOEDA+" "+This.villa.getPropostaByIndex(i).dinheiro
+						End If
+						
+						If(Shell.Confirm(texto,"Aceita Proposta?")) Then
+							This.villa.aceitaProposta(i,mesAtual)
+						Else 
+							This.villa.negaProposta(i,mesAtual)
+						End If
+					End If
+				End If
+			Next
+			
+		End Method
+		Function realizaProposta(game As Game ,nextId As Integer) As Integer
+			//Abre painel para solicitar Carbono para Outra Villa, atravez da criacao de um painel para entrada dos dados			
+			Var flagVenda As Boolean
+			Define painel As Painel
+			painel.windowBackground = game.windowBackground
+			
+			//Tipo de Proposta (Venda ou Compra)
+			painel.setup(This.painelX,This.painelY,This.painelWidth,1,380,Colors.Chocolate)
+			painel.imprime("Cria Proposta de Carbono",colors.Black,0)
+			Var tipo As TextBox			
+			tipo.Init(New Point(This.painelX+2,This.painelY+20),New Point(150, 20),"Compra / Venda: ")			
+			tipo.Input()
+			If(compare(trim(tipo.Text),"venda",True)=0) Then
+				flagVenda = True
+			Else
+				If(compare(trim(tipo.Text),"compra",True)=0) Then
+					flagVenda = False
+				Else					
+					painel.apagar()
+					Return nextId-1
+				End If
+			End If		
+									
+			painel.apagar()//Limpa Painel
+			
+			//escolhe a villa que vai receber a Proposta
+			painel.setup(This.painelX,This.painelY,This.painelWidth,20,20,Colors.Chocolate)
+			painel.imprime("Cria Proposta de Carbono",colors.Black,0)
+			Var linha As Integer =1
+			For linha =1 To game.pcVillas.Count
+				painel.imprime(linha+" - "+game.getPcVillaByIndex(linha).villa.nome,Colors.White,linha)
+			Next
+			Var villa As TextBox
+			villa.Init(New Point(This.painelX+2,This.painelY+(painel.lineHeigth*linha)),New Point(150, 20),"Villa: ")			
+			villa.Input()
+			//Cancela Proposta se entrada for invalida
+			If(Trim(villa.Text)<>"")Then
+				If(ConvertToInteger(villa.Text)<1 Or ConvertToInteger(villa.Text)>game.pcVillas.Count) Then
+					painel.imprime("Cancelando ....",colors.Black,0)
+					delay(700)
+					painel.apagar()
+					Return nextId-1
+				End If
+			Else
+				painel.imprime("Cancelando ....",colors.Black,0)
+				delay(700)
+				painel.apagar()
+				Return nextId-1
+			End If
+			
+			painel.apagar()//Limpa Painel
+			
+			//Entra com os valores da Proposta
+			painel.setup(This.painelX,This.painelY,This.painelWidth,1,380,Colors.Chocolate)
+			painel.imprime("Cria Proposta de Carbono",colors.Black,0)
+			Var TBox As TextBox[2]
+			Tbox[1].Init(New Point(This.painelX+2,This.painelY+20),New Point(150, 20),"Qunt. Carbono : ")
+			Tbox[2].Init(New Point(This.painelX+2,This.painelY+60),New Point(150, 20),"Qunt. Dinheiro: ")	
+			This.ResetText(Tbox)
+			Tbox[1].Input()									
+			Tbox[2].Input()
+			//Cancela Proposta se entrada for invalida
+			If(Trim(Tbox[1].Text)<>"" Or Trim(Tbox[2].Text)<>"")Then
+				If (ConvertToDecimal(Tbox[1].Text)<0 Or ConvertToDecimal(Tbox[2].Text)<0) Or ((ConvertToDecimal(Tbox[1].Text)=0 And ConvertToDecimal(Tbox[2].Text)=0))Then
+					painel.imprime("Anulando ....",colors.Black,0)
+					delay(700)
+					painel.apagar()
+					Return nextId-1
+				End If		
+			Else
+				painel.imprime("Anulando ....",colors.Black,0)
+				delay(700)
+				painel.apagar()
+				Return nextId-1
+			End If
+			
+			//Cria Proposta utilizando os dados previamente entrados
+			Define proposta As PropostaCarbono
+			proposta.setup(nextId,game.mesAtual,proposta.ABERTO,This.villa,game.getPcVillaByIndex(ConvertToInteger(villa.Text)).villa,This.formataDinheiro(Tbox[1].Text),This.formataDinheiro(Tbox[2].Text),flagVenda)
+			This.ResetText(Tbox)//Limpa Caixa de Textos
+			painel.apagar()
+			Return nextId
+		End Function
+		Method cancelaProposta(game As Game)
+			//Jogador escolhe Proposta em aberta para cancelar
+			Var i As Integer			
+			Var linha As Integer
+			Var opcao As Integer
+			Define proposta As PropostaCarbono
+			Define painel As Painel
+			painel.windowBackground = game.windowBackground
+			painel.setup(This.painelX,This.painelY,This.painelWidth,20,20,Colors.Chocolate)//Cria um painel de 20 linhas com 20 de tamanho cada
+			painel.imprime("Cancela Proposta de Carbono",colors.Black,0)
+			//Monta o menu de opcoes de Propostas em aberto
+			linha=0
+			opcao=0
+			For i=1 To This.villa.propostas.Count
+				proposta = This.villa.getPropostaByIndex(i)
+				If(proposta.getRemetente()=This.villa And proposta.getStatusIndex()=proposta.ABERTO) Then
+					opcao+=1
+					painel.imprime(opcao+" - ",colors.Black,linha+1)
+					linha+=1
+					painel.imprime("    Comprador: "+proposta.comprador.nome,colors.Black,linha+1)
+					linha+=1
+					painel.imprime("    Vendedor : "+proposta.vendedor.nome,colors.Black,linha+1)
+					linha+=1
+					painel.imprime("    Carbono  : "+proposta.creditoCarbono,colors.Black,linha+1)
+					linha+=1
+					painel.imprime("    Dinheiro : "+proposta.dinheiro,colors.Black,linha+1)
+					linha+=1
+				End If
+			Next
+			Var escolha As TextBox
+			escolha.Init(New Point(This.painelX+2,This.painelY+(painel.lineHeigth*(1+linha))),New Point(150, 20),"Opcao: ")			
+			escolha.Input()
+			
+			//Busca Proposta Para Cancelar
+			opcao=0
+			For i=1 To This.villa.propostas.Count
+				proposta = This.villa.getPropostaByIndex(i)
+				If(proposta.getRemetente()=This.villa And proposta.getStatusIndex()=proposta.ABERTO) Then
+					opcao+=1
+					If(opcao = ConvertToInteger(escolha.Text)) Then
+						proposta.mudaStatus(proposta.CANCELADO)
+						Break
+					End If
+				End If
+			Next
+			painel.apagar()
+		End Method
+		Private Method ResetText(TextBoxControls As TextBox[])
+			Var idx As Integer
+			For idx = 1 To ArrayLength(TextBoxControls)
+				TextBoxControls[idx].Text = ""
+				TextBoxControls[idx].Draw()
+			Next
+		End Method
+		Function pedeFinanciamento(game As Game , nextId As Integer) As Integer
+			//Abre Painel que pede dinheiro ou credito de carbono emprestado ao banco
+			Var tipoFinanciamento As Integer
+			Define painel As Painel
+			painel.windowBackground = game.windowBackground
+			Define financiamento As Financiamento	
+			
+			//Tipo de Proposta (Venda ou Compra)
+			painel.setup(This.painelX,This.painelY,This.painelWidth,1,380,Colors.Chocolate)
+			painel.imprime("Cria Financiamento",colors.Black,0)
+			Var tipo As TextBox
+			tipo.Init(New Point(This.painelX+2,This.painelY+20),New Point(150, 20),"Carbono / Dinheiro: ")
+			tipo.Input()
+			If(compare(trim(tipo.Text),"carbono",True)=0) Then
+				tipoFinanciamento = financiamento.TIPO_CARBONO
+			Else
+				If(compare(trim(tipo.Text),"dinheiro",True)=0) Then
+					tipoFinanciamento = financiamento.TIPO_DINHEIRO
+				Else					
+					painel.apagar()
+					Return nextId-1
+				End If
+			End If		
+									
+			painel.apagar()//Limpa Painel
+						
+			//Entra com os valores do Finaciamento
+			painel.setup(This.painelX,This.painelY,This.painelWidth,1,380,Colors.Chocolate)
+			painel.imprime("Cria Proposta de Carbono",colors.Black,0)
+			Var TBox As TextBox[2]
+			Tbox[1].Init(New Point(This.painelX+2,This.painelY+20),New Point(150, 20),"Qunt. para Financiar : ")
+			Tbox[2].Init(New Point(This.painelX+2,This.painelY+60),New Point(150, 20),"Parcelas: ")	
+			This.ResetText(Tbox)
+			Tbox[1].Input()									
+			Tbox[2].Input()
+			If(Trim(Tbox[1].Text)<>"" And Trim(Tbox[1].Text)<>"")Then
+				//Cancela Financiamento se entrada for invalida
+				If (ConvertToDecimal(Tbox[1].Text)<0 Or ConvertToInteger(Tbox[2].Text)<0) Or ((ConvertToDecimal(Tbox[1].Text)<=0 Or ConvertToInteger(Tbox[2].Text)<=0))Then
+					painel.imprime("Anulando ....",colors.Black,0)
+					delay(700)
+					painel.apagar()
+					Return nextId-1
+				End If					
+			
+				//Cria Financiamento utilizando os dados previamente entrados			
+				financiamento.setup(nextId,This.formataDinheiro(Tbox[1].Text),game.banco.taxaJuros,game.mesAtual,game.mesAtual+ConvertToInteger(Tbox[2].Text),tipoFinanciamento,This.villa,financiamento.STATUS_ABERTO)			
+				game.banco.addFinanciamento(financiamento)
+			Else 
+				nextId-=1
+			End If
+			This.ResetText(Tbox)//Limpa Caixa de Textos
+			painel.apagar()				
+			Return nextId
+		End Function
+		Method novoInvestimento(game As Game)
+			//Abre Painel para Criar novo investimento ou Retirar se já existir
+			//Entra com a quantidade a ser investida
+			Define painel As Painel
+			painel.windowBackground = game.windowBackground
+			painel.setup(This.painelX,This.painelY,This.painelWidth,1,380,Colors.Chocolate)
+			Var entrada As TextBox
+			If This.villa.investimento.status = This.villa.investimento.STATUS_FECHADO Then
+				painel.imprime("Novo Investimento",colors.Black,0)
+				entrada.Init(New Point(This.painelX+2,This.painelY+20),New Point(150, 20),"Quantidade a Investir: ")
+				entrada.Input()
+				If(Trim(entrada.Text)<>"")Then
+					If (This.formataDinheiro(entrada.Text) > 0)Then
+						If (This.formataDinheiro(entrada.Text) >= This.villa.dinheiro/2) Then
+							Alert("Nao pode Investir mais de 50% do seu dinheiro","Invalido")
+						Else
+							This.villa.novoInvestimento(This.formataDinheiro(entrada.Text))
+						End If
+					End If
+				End If
+			Else
+				painel.imprime("Recolher Investimento",colors.Black,0)
+				entrada.Init(New Point(This.painelX+2,This.painelY+20),New Point(150, 20),"Recolher (sim): ")
+				entrada.Input()
+				If(Compare(entrada.Text,"sim",True)=0) Then
+					This.villa.dinheiro+= This.villa.investimento.recolherFrutos()
+				End If
+				
+			End If			
+									
+			painel.apagar()//Limpa Painel
+		End Method
+		Method adicionaUsina(usina As Usina)
+			//Adiciona uma nova Usina a villa
+			If(This.villa.dinheiro - usina.custoInicial >= 0)Then				
+				villa.addUsina(usina)
+				Alert("Comprada com sucesso!","Comprou")
+			Else
+				Alert("Dinheiro insuficiente!","Nao Comprou")
+			End If
+		End Method
+		Private Function formataDinheiro(texto As String) As Decimal
+			//Troca ponto por virgula e retorna o valor em Decimal
+			Var indice As Integer = IndexOf(texto,".",1,True)
+			Var retorno As String = texto
+			If (indice>0) Then
+				retorno = (SubString(texto,1,indice-1)+","+SubString(texto,indice+1,Length(texto)))				
+			End If
+			Return ConvertToDecimal(retorno)
+		End Function
+		
+	End Class
+	
+	Class PcVilla
+		Var id As Integer
+		Define villa As Villa
+		Define letreiro As Letreiro
+		
+		Define propostaARealizar As PropostaCarbono
+		
+		Method setup(id As Integer , villa As Villa )
+			This.id = id
+			This.villa = villa
+		End Method
+		
+		Method analisaPropostas(game As Game , mesAtual As Integer,quantidade As Integer)
+			//Analise de propostas feito pelo jogador para Villa do Computador
+			Var i As Integer
+			Var proposta As PropostaCarbono
+			Var flagAceito As Boolean
+			Var gastoMensal As Decimal =0
+			Var ganhoMensal As Decimal =0
+			Var analisados As Integer = 0
+			
+			Var prioridadeDeCarbono As Integer = This.calculaPrioridadeCarbono(game)
+			Var prioridadeDeDinheiro As Integer = This.calculaPrioridadeDinheiro(game)
+			
+			For i=1 To villa.propostas.Count
+				If(analisados>=quantidade)Then
+					Break
+				End If
+				proposta = villa.getPropostaByIndex(i)
+				If(proposta.getStatusIndex() = proposta.ABERTO) Then
+					If (proposta.getDestinatario() = This.villa) Then
+						analisados+=1						
+						gastoMensal += This.villa.calculaGastoUsinas()
+						gastoMensal += This.villa.dividaFinanciamentosNoMes(mesAtual)
+						ganhoMensal += This.villa.populacao.valorImposto * This.villa.populacao.tamanho
+						ganhoMensal += This.villa.investimento.analisaFrutos(This.villa)
+						If(proposta.comprador = This.villa) Then //Sendo o computador o comprador de Carbono
+							flagAceito = False
+							If (proposta.creditoCarbono / proposta.dinheiro < 0.05) Then //Proporcao sureal, nega sem pensar
+								Shell.Alert("Você tá maluco? Acha que sou igreja, né? só pode!","NEGADO")
+								This.villa.negaProposta(i,mesAtual)
+								Continue
+							End If
+							If (prioridadeDeCarbono > 1 And prioridadeDeDinheiro = 0 And proposta.dinheiro/This.villa.dinheiro < 0.50) Then
+								//estando a villa com um crescimento de Carbono muito baixa, porem com algum crescimento financeiro
+								flagAceito = True
+							End If
+							If	(prioridadeDeCarbono > 2 ) Then
+								//Carbono em queda ou uma taxa , positiva ou negativo, muito alta
+								flagAceito = True
+							End If	
+							
+							If (prioridadeDeCarbono =0 And proposta.dinheiro/This.villa.dinheiro < 0.35) Then								
+								flagAceito = True
+							End If
+							
+							If (flagAceito) Then
+								This.letreiro.adicionaTexto(This.villa.nome+" aceitou prosposta de "+proposta.getRemetente().nome)
+								This.villa.aceitaProposta(i,mesAtual)
+							Else
+								This.letreiro.adicionaTexto(This.villa.nome+" negou prosposta de "+proposta.getRemetente().nome)
+								This.villa.negaProposta(i,mesAtual)
+							End If
+						Else // Sendo o vendedor de Carbono	
+							
+							If (proposta.creditoCarbono/proposta.dinheiro > 5) Then //Muito carbono para pouco dinheiro
+								Shell.Alert("Não sou sua mãe não cara.","NEGADO")
+								This.letreiro.adicionaTexto(This.villa.nome+" negou prosposta de "+proposta.getRemetente().nome)
+								This.villa.negaProposta(i,mesAtual)
+								Continue
+							End If
+							If (proposta.dinheiro/proposta.creditoCarbono > 2 And proposta.creditoCarbono/This.villa.creditoCarbono < 0.6) Then // Se for ganhar mt credito
+								This.letreiro.adicionaTexto(This.villa.nome+" aceitou prosposta de "+proposta.getRemetente().nome)
+								This.villa.aceitaProposta(i,mesAtual)
+								Continue
+							End If		
+							
+							flagAceito = False
+							
+							If (prioridadeDeCarbono = 0 And proposta.creditoCarbono/This.villa.creditoCarbono < 0.2) Then
+								flagAceito = True
+							End If
+							
+							If (prioridadeDeCarbono = 0 And prioridadeDeDinheiro > 1 And proposta.creditoCarbono/This.villa.creditoCarbono < 0.5) Then
+								flagAceito = True
+							End If
+							
+							If (prioridadeDeCarbono < 2 And prioridadeDeDinheiro > 3 And proposta.creditoCarbono/This.villa.creditoCarbono < 0.31) Then
+								flagAceito = True
+							End If
+							
+							If (flagAceito) Then
+								This.letreiro.adicionaTexto(This.villa.nome+" aceitou prosposta de "+proposta.getRemetente().nome)
+								This.villa.aceitaProposta(i,mesAtual)
+							Else
+								This.letreiro.adicionaTexto(This.villa.nome+" negou prosposta de "+proposta.getRemetente().nome)
+								This.villa.negaProposta(i,mesAtual)
+							End If
+						End If											
+					End If
+				End If
+			Next
+		End Method
+		
+		Function realizaProposta(game As Game , propostaId As Integer) As Integer
+			//Realizacao de proposta para o jogador, se for bom para a villa
+			If(Random(0,5)>3)Then
+				Return propostaId
+			End If			
+			
+			Var prioridadeDeCarbono As Integer = This.calculaPrioridadeCarbono(game)
+			Var prioridadeDeDinheiro As Integer = This.calculaPrioridadeDinheiro(game)
+			
+			Define proposta As PropostaCarbono
+			If(prioridadeDeCarbono > 2) Then	
+				Var porcentagem As Decimal
+				If(prioridadeDeCarbono =3)Then
+					porcentagem = 0.5
+				Else If (prioridadeDeCarbono =4) Then
+					porcentagem = 0.7
+				Else 
+					porcentagem = 0.9
+				End If
+				
+				Var delta As Decimal = Abs(This.villa.historico.calculaVariacaoCarbono(game.mesAtual-2,game.mesAtual-1)[1,1])
+				Var valorNecessario As Decimal = delta*porcentagem
+				Var villa As Villa = This.escolheVillaVerde(game) // Destinatario
+			
+				Var valorPedir As Decimal = 0
+				If(valorNecessario/villa.creditoCarbono < 0.3)Then
+					valorPedir = valorNecessario
+				Else If(valorNecessario>villa.creditoCarbono) Then
+					valorPedir = villa.creditoCarbono*0.2
+				Else If (This.villa.poluicao - This.villa.emissaoCarbono < 0) Then
+					valorPedir = This.villa.emissaoCarbono - This.villa.poluicao
+				End If
+				If(valorPedir>0 And villa.creditoCarbono > 0)Then
+					propostaId+=1
+					This.letreiro.adicionaTexto(This.villa.nome+" faz proposta de Carbono "+valorPedir+" para "+villa.nome)
+					proposta.setup(propostaId,game.mesAtual,proposta.ABERTO,This.villa,villa,(This.villa.poluicao - This.villa.emissaoCarbono)*porcentagem,(1.1*((This.villa.poluicao - This.villa.emissaoCarbono)*porcentagem)),False)			
+				End If
+			Else If(prioridadeDeDinheiro > 2) Then
+				Var porcentagem As Decimal
+				If(prioridadeDeDinheiro =3)Then
+					porcentagem = 0.5
+				Else If (prioridadeDeDinheiro =4) Then
+					porcentagem = 0.7
+				Else 
+					porcentagem = 0.9
+				End If
+											
+				Var delta As Decimal = Abs(This.villa.historico.calculaVariacaoDinheiro(game.mesAtual-2,game.mesAtual-1)[1,1])
+				
+				Var valorNecessario As Decimal = delta*porcentagem
+				Var villa As Villa = This.escolheVillaRica(game) // Destinatario
+				If(villa.dinheiro>100)Then
+					Var valorPedir As Decimal = 0
+					If(valorNecessario/villa.dinheiro < 0.3)Then
+						valorPedir = valorNecessario
+					Else If(valorNecessario>villa.dinheiro) Then
+						valorPedir = villa.dinheiro*0.2
+					End If
+					If(valorPedir>0) Then
+						//Alert(This.villa.nome+" faz proposta de "+valorPedir+" para "+villa.nome,"Proposta")
+						This.letreiro.adicionaTexto(This.villa.nome+" faz proposta de dinheiro "+valorPedir+" para "+villa.nome)
+						propostaId+=1
+						proposta.setup(propostaId,game.mesAtual,proposta.ABERTO,This.villa,villa,valorPedir*1.1,valorPedir,True)			
+					End If
+				End If
+			End If
+			If (This.propostaARealizar.getStatusIndex() = This.propostaARealizar.CRIADO) Then
+				propostaId+=1
+				This.propostaARealizar.id = propostaId
+				This.propostaARealizar.envia()
+			End If
+			Return propostaId
+		End Function
+		
+		Private Function escolheVillaRica(game As Game) As Villa
+			//Escolhe a villa com mais dinheiro
+			Var i As Integer
+			Define villaRica As Villa = game.jogador.villa
+			For i = 1 To game.pcVillas.Count
+				If (This.villa.id<>game.getPcVillaByIndex(i).villa.id And  game.getPcVillaByIndex(i).villa.dinheiro > villaRica.dinheiro) Then
+					villaRica  = game.getPcVillaByIndex(i).villa
+				End If
+			Next			
+			Return villaRica
+		End Function
+		
+		Private Function escolheVillaVerde(game As Game) As Villa
+			//Escolhe a villa mais ecologicamente correta
+			Var i As Integer
+			Define villaVerde As Villa = game.jogador.villa
+			For i = 1 To game.pcVillas.Count
+				If (This.villa.id<>game.getPcVillaByIndex(i).villa.id And  game.getPcVillaByIndex(i).villa.creditoCarbono > villaVerde.creditoCarbono) Then
+					villaVerde  = game.getPcVillaByIndex(i).villa
+				End If
+			Next			
+			Return villaVerde
+		End Function
+						
+		Function calculaPrioridadeDinheiro(game As Game) As Integer
+			If(game.mesAtual>2)Then					
+				Var delta As Integer = This.villa.historico.calculaVariacaoDinheiro(game.mesAtual-2,game.mesAtual-1)[1,1]
+				Var ultimoMes As Integer = This.villa.historico.calculaVariacaoDinheiro(game.mesAtual-2,game.mesAtual-1)[1,2]
+				//alert("Delta : "+delta,This.villa.nome)
+				If (delta<0) Then //Caso a populacao tenha diminuido
+					//alert((game.mesAtual-6)+": "+This.villa.historico.getPopulacaoFrom(game.mesAtual-6).tamanho,This.villa.nome)
+					If (This.villa.historico.getDinheiroFrom(game.mesAtual-1) <= 0) Then
+						Return 5
+					End If
+					If(This.villa.historico.getDinheiroFrom(ultimoMes) > 0) Then
+						Var proporcao As Decimal = Abs(ConvertToDecimal(delta)) / ConvertToDecimal(This.villa.historico.getDinheiroFrom(ultimoMes))
+						If (proporcao > 0.8) Then
+							Return 5
+						Else If(proporcao > 0.6) Then
+							Return 4
+						Else If(proporcao > 0.4) Then
+							Return 3
+						Else If(proporcao > 0.2) Then
+							Return 2
+						Else If(proporcao > 0.1) Then
+							Return 1
+						End If
+					Else
+						Return 5
+					End If
+				Else If (game.mesAtual - ultimoMes > 20 And This.villa.historico.getDinheiroFrom(game.mesAtual-1) <= -2000) Then
+					Return 5
+				Else If (game.mesAtual - ultimoMes > 15 And This.villa.historico.getDinheiroFrom(game.mesAtual-1) <= 0) Then
+					Return 4
+				Else If (game.mesAtual - ultimoMes > 10 And (This.villa.historico.getDinheiroFrom(game.mesAtual-1) <= 0 Or delta = 0)) Then
+					Return 3
+				Else If (game.mesAtual - ultimoMes > 5  And (This.villa.historico.getDinheiroFrom(game.mesAtual-1) <= 0 Or delta=0)) Then
+					Return 2
+				Else If (game.mesAtual - ultimoMes > 3 And delta < 1000) Then
+					Return 1
+				End If
+			End If
+			Return 0
+		End Function
+		
+		Function calculaPrioridadeTamanho(game As Game) As Integer
+			If(game.mesAtual>2)Then					
+				Var delta As Integer = This.villa.historico.calculaVariacaoTamanho(game.mesAtual-2,game.mesAtual-1)[1,1]
+				Var ultimoMes As Integer = This.villa.historico.calculaVariacaoTamanho(game.mesAtual-2,game.mesAtual-1)[1,2]
+				//alert("Delta : "+delta,This.villa.nome)
+				If (delta<0) Then //Caso a populacao tenha diminuido
+					//alert((game.mesAtual-6)+": "+This.villa.historico.getPopulacaoFrom(game.mesAtual-6).tamanho,This.villa.nome)
+					If(This.villa.historico.getPopulacaoFrom(ultimoMes).tamanho > 0) Then
+						Var proporcao As Decimal = Abs(ConvertToDecimal(delta)) / ConvertToDecimal(This.villa.historico.getPopulacaoFrom(ultimoMes).tamanho)
+						If (proporcao > 0.8) Then
+							Return 5
+						Else If(proporcao > 0.6) Then
+							Return 4
+						Else If(proporcao > 0.4) Then
+							Return 3
+						Else If(proporcao > 0.2) Then
+							Return 2
+						Else If(proporcao > 0.1) Then
+							Return 1
+						End If
+					Else
+						Return 5
+					End If
+				End If
+			End If
+			Return 0
+		End Function
+		
+		Function calculaPrioridadeEnergia(game As Game) As Integer
+			If(game.mesAtual>2)Then					
+				Var delta As Integer = This.villa.historico.calculaVariacaoEnergia(game.mesAtual-2,game.mesAtual-1)[1,1]
+				Var ultimoMes As Integer = This.villa.historico.calculaVariacaoEnergia(game.mesAtual-2,game.mesAtual-1)[1,2]
+				//alert("Delta : "+delta,This.villa.nome)
+				If (delta<0) Then //Caso a populacao tenha diminuido
+					//alert((game.mesAtual-6)+": "+This.villa.historico.getPopulacaoFrom(game.mesAtual-6).tamanho,This.villa.nome)
+					If(This.villa.historico.getEnergiaFrom(ultimoMes) > 0) Then
+						Var proporcao As Decimal = Abs(ConvertToDecimal(delta)) / ConvertToDecimal(This.villa.historico.getEnergiaFrom(ultimoMes))
+						If (proporcao > 0.8) Then
+							Return 5
+						Else If(proporcao > 0.6) Then
+							Return 4
+						Else If(proporcao > 0.4) Then
+							Return 3
+						Else If(proporcao > 0.2) Then
+							Return 2
+						Else If(proporcao > 0.1) Then
+							Return 1
+						End If
+					Else
+						Return 5
+					End If
+				Else If (This.villa.historico.getEnergiaFrom(game.mesAtual-1) = 0) Then
+					Return 5
+				Else If (game.mesAtual - ultimoMes > 20 And delta = 0) Then
+					Return 5
+				Else If (game.mesAtual - ultimoMes > 15 And delta = 0) Then
+					Return 4
+				Else If (game.mesAtual - ultimoMes > 10 And delta = 0) Then
+					Return 3
+				Else If (game.mesAtual - ultimoMes > 5 And delta = 0) Then
+					Return 2
+				Else If (game.mesAtual - ultimoMes > 3 And delta < 1000) Then
+					Return 1
+				End If
+			End If
+			Return 0
+		End Function
+		
+		Function calculaPrioridadeCarbono(game As Game) As Integer
+			If(game.mesAtual>2)Then					
+				Var delta As Integer = This.villa.historico.calculaVariacaoCarbono(game.mesAtual-2,game.mesAtual-1)[1,1]
+				Var ultimoMes As Integer = This.villa.historico.calculaVariacaoCarbono(game.mesAtual-2,game.mesAtual-1)[1,2]
+				//alert("Delta : "+delta,This.villa.nome)
+				If (delta<0) Then //Caso a populacao tenha diminuido
+					//alert((game.mesAtual-6)+": "+This.villa.historico.getPopulacaoFrom(game.mesAtual-6).tamanho,This.villa.nome)
+				
+					If(This.villa.historico.getCarbonoFrom(game.mesAtual-1) > 0) Then
+						Var proporcao As Decimal = Abs(ConvertToDecimal(delta)) / ConvertToDecimal(This.villa.historico.getCarbonoFrom(game.mesAtual-1))
+						If (proporcao > 0.8) Then
+							Return 5
+						Else If(proporcao > 0.6) Then
+							Return 4
+						Else If(proporcao > 0.4) Then
+							Return 3
+						Else If(proporcao > 0.2) Then
+							Return 2
+						Else If(proporcao > 0.1) Then
+							Return 1
+						End If
+					Else
+						Return 5
+					End If	
+				End If
+			End If
+			Return 0
+		End Function
+		
+		Private Function ordenaUsinaPorEnergia(game As Game) As Usina[]
+			Var ordenada As Usina[game.usinas.Count]
+			Var i As Integer
+			Var j As Integer
+			For i=1 To game.usinas.Count
+				ordenada[i] = game.getUsinaById(i)
+			Next
+			
+			Define tmp As Usina
+			For i=1 To game.usinas.Count
+				For j=i To game.usinas.Count
+					If(ordenada[i].energiaProduzida<ordenada[j].energiaProduzida) Then
+						tmp = ordenada[i]
+						ordenada[i] = ordenada[j]
+						ordenada[j] = tmp
+					End If
+				Next
+			Next
+			Return ordenada
+		End Function
+		
+		Private Function ordenaUsinaPorPoluicao(game As Game) As Usina[]
+			Var ordenada As Usina[game.usinas.Count]
+			Var i As Integer
+			Var j As Integer
+			For i=1 To game.usinas.Count				
+				ordenada[i] = game.getUsinaById(i)
+			Next
+			
+			Define tmp As Usina
+			For i=1 To game.usinas.Count
+				For j=i To game.usinas.Count
+					If(ordenada[i].grauPoluicao>ordenada[j].grauPoluicao) Then
+						tmp = ordenada[i]
+						ordenada[i] = ordenada[j]
+						ordenada[j] = tmp
+					End If
+				Next
+			Next
+			Return ordenada
+		End Function
+		
+		Method analisaUsina(game As Game)
+			If(Random(0,5)>2)Then
+				Return 
+			End If
+			//Lista de Objetivos para melhorar a villa
+			// Prioridade 0 - 5, onde 0 não é necessario e 5 é urgente
+			Var aumentarPopulacao As Integer = 0 // caso tenha a necessidade de aumentar o numero de habitantes da villa			
+			Var producaoDeCarbono As Integer = 0 // caso tenha a necessidade de aumentar a producao de Carbono
+			Var producaoDeEnergia As Integer = 0 // caso tenha a necessidade de aumentar a producao de Energia
+			
+			Var textoDebug As String = ""						
+			
+			aumentarPopulacao = This.calculaPrioridadeTamanho(game)
+			If(aumentarPopulacao>0) Then								
+				textoDebug+="\n  Aumentar a populacao, com prioridade de "+aumentarPopulacao
+			End If			
+			
+			producaoDeEnergia = This.calculaPrioridadeEnergia(game)			
+			If(producaoDeEnergia>0) Then								
+				textoDebug+="\n  Aumentar a producao de Energia, com prioridade de "+producaoDeEnergia
+			End If
+			
+			
+			producaoDeCarbono = This.calculaPrioridadeCarbono(game)
+			If(producaoDeCarbono>0) Then								
+				textoDebug+="\n  Diminuir a poluicao, com prioridade de "+producaoDeCarbono
+			End If
+			
+			If(Compare(textoDebug,"",False)<>0)Then				
+				//Alert("A villa "+This.villa.nome+ ", verificou a necessidade de: "+textoDebug,"Criacao de Usina DEBUG")
+			End If
+			
+			Var i As Integer
+			Define usina As Usina
+			Var proporcao As Decimal// poluicao por energia produzida da usina
+			Var usinas As Usina[game.usinas.Count] = This.ordenaUsinaPorEnergia(game)
+			
+			//Ordenar por producao	
+			If (producaoDeCarbono>3) Then
+				usinas = This.ordenaUsinaPorPoluicao(game)
+			End If
+			
+			Define usinaEscolhida As Usina =escolheUsina(game, usinas,producaoDeEnergia, aumentarPopulacao ,producaoDeCarbono)
+			
+			If(usinaEscolhida.id>=0) Then
+				This.letreiro.adicionaTexto(This.villa.nome+" criou Usina : "+usinaEscolhida.nome)
+				This.villa.addUsina(game.copyUsina(usinaEscolhida.id))
+			End If
+				
+		End Method
+		
+		Private Function escolheUsina(game As Game, usinas As Usina[],producaoDeEnergia As Integer, aumentarPopulacao As Integer, producaoDeCarbono As Integer) As Usina
+			//Escolhe a melhor Usina de acordo com as necessidades da villa
+			Var i As Integer
+			Define usina As Usina
+			
+			Var proporcao As Decimal// poluicao por energia produzida da usina
+			
+			For i=1 To game.usinas.Count
+				usina  = usinas[i]
+				proporcao  = ConvertToDecimal(usina.grauPoluicao) / ConvertToDecimal(usina.energiaProduzida)
+				If (proporcao <= 1) Then
+					If(proporcao < 0.5) Then
+						If(producaoDeEnergia > 0 Or aumentarPopulacao>0) Then																			
+							If(usina.custoInicial/This.villa.dinheiro <0.3 And usina.custoMensal / This.villa.populacao.recolherImpostos() < 0.2)Then
+								//Alert("A villa "+This.villa.nome+ ", criou a usina "+usina.nome,"1")
+								Return usina
+							End If
+						End If
+					Else If (proporcao > 0.5) Then
+						If(producaoDeEnergia > 0 And producaoDeCarbono<2) Then														
+							If(usina.custoInicial/This.villa.dinheiro <0.3)Then
+								//Alert("A villa "+This.villa.nome+ ", criou a usina "+usina.nome,"2")
+								Return usina
+							End If
+						End If
+					End If
+				Else If (proporcao>1 And proporcao < 3) Then
+					If(producaoDeEnergia > 3) Then												
+						If(usina.custoInicial/This.villa.dinheiro <0.9)Then
+							//Alert("A villa "+This.villa.nome+ ", criou a usina "+usina.nome,"3")
+							Return usina
+						Else If(usina.custoInicial/This.villa.dinheiro > 1) Then
+							If(This.propostaARealizar.getStatusIndex()= This.propostaARealizar.ACEITO) Then
+								This.propostaARealizar.cancela()
+								Return usina
+							Else If(This.propostaARealizar.getStatusIndex()= This.propostaARealizar.NEGADO) Then
+								This.propostaARealizar.cancela()
+							Else
+								Var villa As Villa = This.escolheVillaRica(game) // Destinatario
+								If villa.dinheiro > 0 Then
+									Define proposta As PropostaCarbono	
+									This.letreiro.adicionaTexto("A villa "+This.villa.nome+ ", criou a proposta a realizar para "+villa.nome)
+									proposta.cria(game.mesAtual,This.villa,villa,usina.custoInicial*1.1,usina.custoInicial,True)							
+									This.propostaARealizar = proposta
+								End If
+							End If							
+							
+						End If
+					End If
+				End If
+			Next	
+			usina.id = -1
+			Return usina
+		End Function
+		
+	End Class
+	
+	Class Banco		
+		Define financiamentos As GenericList
+		Define taxaJuros As Decimal
+		
+		Method setup(taxaJuros As Decimal )
+			This.taxaJuros = taxaJuros
+		End Method
+		
+		Method analisaFinanciamentos(mesAtual As Integer,quantidade As Integer)
+			//Analisa uma certa quantidade de Financiamentos solicitados pelos jogadores em aberto
+			Var i As Integer			
+			Var done As Integer=0	//Quantidade financiamentos analisados
+			Define financiamento As Financiamento
+			For i=1 To financiamentos.Count
+				financiamento = This.getFinanciamentoByIndex(i)				
+				If(financiamento.getStatusIndex() = financiamento.STATUS_ABERTO) Then						
+					done+=1
+					If(done>quantidade)Then
+						Break
+					End If
+					
+					If(financiamento.villa.contaFinanciamentos(financiamento.STATUS_ACEITO)>1) Then//Variar de acordo com o nivel
+						//Se houver muitos financiamentos ainda nao pago.
+						This.negaFinanciamento(mesAtual,financiamento)										
+						Continue
+					End If
+										
+					If(financiamento.mesFinal -financiamento.mesInicial > 20 ) Then
+						This.negaFinanciamento(mesAtual,financiamento)										
+						Continue
+					End If
+					
+					If(financiamento.villa.dinheiro>0 And financiamento.villa.dividaFinanciamentos() > 3*financiamento.villa.dinheiro) Then
+						//Se a divida em Financiamento for muito superior ao que o jogador tem em caixa
+						This.negaFinanciamento(mesAtual,financiamento)						
+						Continue
+					End If
+					
+					This.aceitaFinanciamento(financiamento,mesAtual)										
+				End If
+			Next
+		End Method			
+		
+		Method cobraFinanciamentos(mesAtual As Integer)
+			//cobra financiamentos realizados pelo jogador, cujo status esta aceito
+			Var i As Integer			
+			Define financiamento As Financiamento
+			For i=1 To financiamentos.Count
+				financiamento = This.getFinanciamentoByIndex(i)				
+				If(financiamento.getStatusIndex() = financiamento.STATUS_ACEITO) Then													
+					financiamento.pagaFinanciamento(mesAtual)						
+				End If
+			Next
+		End Method
+		
+		Method addFinanciamento(financiamento As Financiamento)
+			//Adiciona financiamento ao vetor
+			financiamentos.Add(financiamento)
+		End Method
+		
+		Function getFinanciamentoById(id As Integer) As Financiamento
+			//Pega financiamento pelo identificador
+			Var i As Integer = 0
+			Var flagAcho As Boolean = False
+			For i=1 To This.financiamentos.Count
+				If(This.getFinanciamentoByIndex(i).id = id) Then
+					flagAcho=True
+					Break
+				End If
+			Next
+			If(Not flagAcho) Then
+				i=0
+			End If
+			Return This.getFinanciamentoByIndex(i)
+		End Function
+		
+		Function getFinanciamentoByIndex(index As Integer) As Financiamento
+			//Pega Financiamento pela posicao no vetor
+			Return financiamentos.Item(index)
+		End Function
+				
+		Method mostraFinanciamentos(game As Game , painel As Painel)
+			//Imprime em um Painel os Financiamentos, cujo status nao esta finalizado
+			painel.clear()
+			Var i As Integer =1
+			Var linha As Integer = 1	
+			For i=1 To This.financiamentos.Count
+				If(This.getFinanciamentoByIndex(i).getStatusIndex() <> This.getFinanciamentoByIndex(i).STATUS_ABERTO And game.mesAtual - This.getFinanciamentoByIndex(i).mesFinal>2)Then					
+					Continue
+				End If
+				painel.imprime(" ID: "+This.getFinanciamentoByIndex(i).id,Colors.White,linha)
+				linha+=1
+				painel.imprime(" Tipo: "+This.getFinanciamentoByIndex(i).getTipo(),Colors.White,linha)
+				linha+=1
+				painel.imprime(" Juros: "+This.getFinanciamentoByIndex(i).juros,Colors.White,linha)
+				linha+=1
+				painel.imprime(" Mes Inicial: "+This.getFinanciamentoByIndex(i).mesInicial,Colors.White,linha)
+				linha+=1
+				painel.imprime(" Mes Final: "+This.getFinanciamentoByIndex(i).mesFinal,Colors.White,linha)
+				linha+=1
+				painel.imprime(" Valor Inicial: "+This.getFinanciamentoByIndex(i).valorInicial,Colors.White,linha)
+				linha+=1
+				painel.imprime(" Status: "+This.getFinanciamentoByIndex(i).getStatus(),Colors.White,linha)
+				linha+=1
+				painel.imprime("",Colors.White,linha)
+				linha+=1
+			Next			
+		End Method
+		
+		Method aceitaFinanciamento(financiamento As Financiamento , mes As Integer)	
+			//Aceita o financiamento, atribuindo os valores e atualizanndo o mes inicial
+			If(financiamento.tipo=financiamento.TIPO_DINHEIRO) Then
+				financiamento.villa.dinheiro+=financiamento.valorInicial
+			Else 
+				If(financiamento.tipo=financiamento.TIPO_CARBONO) Then
+					financiamento.villa.creditoCarbono+=financiamento.valorInicial
+				End If
+			End If
+			//Calcula quanto tempo levou para aceitar, para mudar o mes da ultima parcela
+			Var diferenca As Integer = mes - financiamento.mesInicial 
+			//Fim
+			financiamento.mesInicial = mes
+			financiamento.mesFinal += diferenca
+			financiamento.mudaStatus(financiamento.STATUS_ACEITO)
+		End Method
+				
+		Method negaFinanciamento(mes As Integer, financiamento As Financiamento)
+			//Altera o status para negado
+			financiamento.mesFinal = mes
+			financiamento.mudaStatus(financiamento.STATUS_NEGADO)
+		End Method
+	End Class
+	
+	Class Investimento
+		//Constant ESCOLAR As Integer = 1			//Investimento na escolariedade da populacao
+		//Constant SOCIOAMBIENTAL As Integer = 2  //Investimento da consciencia ambiental da populacao
+		//Constant SOCIOFINANCEIRO As Integer = 3 //Investimento de suporte financeiro a populacao
+		Constant STATUS_ABERTO As Integer = 1
+		Constant STATUS_FECHADO As Integer = 2
+		Var id As Integer
+		//Var tipo As Integer
+		Var dinheiroInicial As Decimal
+		Var dinheiroAtual As Decimal				
+		Var status As Integer
+		//Define villa As Villa //Villa escolhida para investir
+		
+		Function getStatus() As String
+			//Pega Status para imprimir
+			Select This.status
+				Case 1
+					Return("ABERTO")
+				End Case
+				Case 2
+					Return("FECHADO")
+				End Case				
+			End Select
+			Return("DESCONHECIDO")
+		End Function
+		
+		Method setup(id As Integer)
+			This.id = id	
+			This.status = This.STATUS_FECHADO			
+			//This.tipo = tipo
+			//This.dinheiroInicial = dinheiroInicial			
+		End Method	
+		
+		Method inicia(dinheiroInicial As Decimal)
+			//Abre um novo Investimento
+			This.dinheiroInicial = dinheiroInicial
+			This.dinheiroAtual = dinheiroInicial
+			//This.villa = villa
+			This.status = This.STATUS_ABERTO
+		End Method
+		
+		Method atualizaValor(villa As Villa)
+			//Atualiza o dinheiro atual do investimento
+			This.dinheiroAtual = This.analisaFrutos(villa)
+		End Method
+		
+		Function analisaFrutos(villa As Villa) As Decimal
+			//Retorna quanto o investimento rendeu, de acordo com a taxa da villa
+			Var frutos As Decimal
+			Var variacao As Integer=1
+			If Not villa.isPositivo Then
+				variacao=-1
+			End If
+			frutos = This.dinheiroInicial + (This.dinheiroInicial * variacao *  (villa.taxaInvestimento))				
+			Return RoundToPlace(frutos,2)
+		End Function
+		
+		Function recolherFrutos() As Decimal
+			//Finaliza investimento, e retorna quanto ele rendeu
+			This.status = This.STATUS_FECHADO
+			Return This.dinheiroAtual
+		End Function
+	End Class
+	
+	Class PropostaCarbono 
+		Constant ABERTO As Integer = 1
+		Constant ACEITO As Integer = 2
+		Constant NEGADO As Integer = 3
+		Constant CANCELADO As Integer = 4
+		Constant CRIADO As Integer = 5		
+		Var id As Integer = -1
+		Var mesRealizado As Integer
+		Var mesResposta As Integer
+		Private Var status As Integer //Apenas a propria classe pode acessar esse Atributo (private)
+		Define comprador As Villa
+		Define vendedor As Villa
+		Var creditoCarbono As Decimal
+		Var dinheiro As Decimal
+		Var flagVenda As Boolean //Se venda de carbono true
+		
+		Method setup(id As Integer , mesRealizado As Integer , status As Integer , de As Villa , para As Villa , creditoCarbono As Decimal , dinheiro As Decimal , flagVenda As Boolean  ) 
+			This.id = id
+			/*This.mesRealizado = mesRealizado
+			This.status = status
+			This.creditoCarbono = creditoCarbono
+			This.dinheiro = dinheiro
+			This.flagVenda = flagvenda
+			//Analisa quem e o comprador e vendedor de Carbono
+			If(This.flagVenda) Then
+				//Se for venda de Carbono, logo o vendedor e o remetente
+				This.vendedor = de
+				This.comprador = para
+			Else
+				//Se for compra de Carbono, logo o comprador e o remetente
+				This.comprador = de
+				This.vendedor = para
+			End If
+			comprador.propostas.Add(This)
+			vendedor.propostas.Add(This)*/
+			This.cria(mesRealizado, de , para , creditoCarbono, dinheiro,flagVenda)
+			This.envia()
+		End Method
+		
+		Method cria(mesRealizado As Integer , de As Villa , para As Villa , creditoCarbono As Decimal , dinheiro As Decimal , flagVenda As Boolean  ) 			
+			This.status = This.CRIADO
+			This.mesRealizado = mesRealizado
+			This.status = status
+			This.creditoCarbono = creditoCarbono
+			This.dinheiro = dinheiro
+			This.flagVenda = flagvenda
+			//Analisa quem e o comprador e vendedor de Carbono
+			If(This.flagVenda) Then
+				//Se for venda de Carbono, logo o vendedor e o remetente
+				This.vendedor = de
+				This.comprador = para
+			Else
+				//Se for compra de Carbono, logo o comprador e o remetente
+				This.comprador = de
+				This.vendedor = para
+			End If
+		End Method
+		
+		Method envia()	
+			This.status = This.ABERTO
+			comprador.propostas.Add(This)
+			vendedor.propostas.Add(This)
+		End Method
+		
+		
+		Function getStatus() As String
+			//Pega Status para imprimir
+			Select This.status
+				Case 1
+					Return("ABERTO")
+				End Case
+				Case 2
+					Return("ACEITO")
+				End Case				
+				Case 3
+					Return("NEGADO")
+				End Case
+				Case 4
+					Return("CANCELADO")
+				End Case
+				Case 5
+					Return("CRIADO")
+				End Case
+			End Select
+			Return("DESCONHECIDO")
+		End Function
+		
+		Function getStatusIndex() As Integer
+			//pega status para comparar
+			Return This.status
+		End Function
+		
+		Method mudaStatus(novoStatus As Integer) // Soh pode alterar o Status se Ele estiver Aberto
+			If(This.status = This.ABERTO) Then
+				This.status = novostatus
+			End If
+		End Method
+		
+		Method cancela() // Soh pode cancelar o Status se Ele estiver ACEITO
+			If(This.status = This.ACEITO) Then
+				This.status = This.CANCELADO
+			End If
+		End Method
+		
+		Function getRemetente() As villa
+			//retorna a villa que criou a proposta
+			If(This.flagVenda)Then
+				Return This.vendedor
+			Else
+				Return This.comprador
+			End If	
+		End Function
+		
+		Function getDestinatario() As villa
+			//retorna a villa que recebe a proposta
+			If(This.flagVenda)Then
+				Return This.comprador
+			Else
+				Return This.vendedor
+			End If	
+		End Function
+		
+	End Class
+	
+	Class Villa
+		Var id As Integer
+		Var nome As String
+		Var dinheiro As Decimal
+		Define usinas As GenericList
+		Var creditoCarbono As Decimal
+		Var emissaoCarbono As Decimal // Emissao permitida por mes
+		Define propostas As GenericList
+		Define populacao As Populacao
+		Var poluicao As Decimal
+		Var energia As Decimal
+		Define financiamentos As GenericList
+		Var taxaInvestimento As Decimal //Taxa atual de crescimento
+		Var isPositivo As Boolean
+		Define investimento As Investimento
+		
+		Define historico As Historico
+		
+		Constant SIMBOLO_MOEDA As String = "CK"
+		
+		Method setup(id As Integer , nome As String , dinheiro As Decimal , creditoCarbono As Decimal , emissaoCarbono As Decimal , populacao As Populacao )
+			This.id = id
+			This.nome = nome
+			This.dinheiro = dinheiro
+			This.creditoCarbono = creditoCarbono
+			This.emissaoCarbono = emissaoCarbono
+			This.populacao = populacao
+			This.poluicao = 0	
+			This.energia=0
+			This.investimento.setup(id)
+		End Method
+		
+		Method addUsina(usina As Usina)
+			//Adiciona usina a villa
+			If(This.getUsinaById(usina.id).id =-1)Then	
+				//Se for nova Usina, ela é criada
+				dinheiro -= usina.custoInicial
+				This.energia +=usina.energiaProduzida
+				usinas.Add(usina)
+			Else 
+				//Se usina já foi previamente criada, entao aumenta sua producao
+				This.getUsinaById(usina.id).aumentarProducao()
+			End If
+		End Method
+		Function getUsinaById(id As Integer) As Usina
+			//Busca Usinas da Villa pelo identificador
+			Var i As Integer = 0
+			Var flagAcho As Boolean = False
+			For i=1 To This.usinas.Count
+				If(This.getUsinaByIndex(i).id = id) Then
+					flagAcho=True
+					Break
+				End If
+			Next
+			If(Not flagAcho) Then
+				Define retorno As Usina
+				retorno.id = -1
+				Return retorno
+			End If
+			Return This.getUsinaByIndex(i)
+		End Function
+		Function getUsinaByIndex(index As Integer) As Usina
+			//Pega Usina pela posicao no vetor
+			Return usinas.Item(index)
+		End Function
+		
+		Function getPropostaByIndex(index As Integer) As PropostaCarbono
+			//pega Proposta pela posicao no vetor
+			Return propostas.Item(index)
+		End Function
+		Function getPropostaById(id As Integer) As PropostaCarbono
+			//Busca Proposta pelo identificador
+			Var i As Integer = 0
+			Var flagAcho As Boolean = False
+			For i=1 To This.propostas.Count
+				If(This.getPropostaByIndex(i).id = id) Then
+					flagAcho=True
+					Break
+				End If
+			Next
+			If(Not flagAcho) Then
+				Define retorno As PropostaCarbono
+				retorno.id = -1
+				Return retorno
+			End If
+			Return This.getPropostaByIndex(i)
+		End Function
+		
+		Method addFinanciamento(financiamento As Financiamento)
+			//Adiciona um financiamento ao vetor
+			financiamentos.Add(financiamento)
+		End Method
+		Function contaFinanciamentos(status As Integer) As Integer
+			//Conta a quantidade de financiamentos em um status
+			Var i As Integer
+			Var total As Integer=0
+			For i=1 To financiamentos.Count
+				If(This.getFinanciamentoByIndex(i).getStatusIndex() = status) Then
+					total+=1
+				End If
+			Next
+			Return total
+		End Function
+		Function dividaFinanciamentos() As Decimal
+			//Calcula divida de financiamentos em Aberto
+			Var i As Integer
+			Var total As Decimal=0
+			For i=1 To financiamentos.Count
+				If(This.getFinanciamentoByIndex(i).getStatusIndex() = This.getFinanciamentoByIndex(i).STATUS_ABERTO) Then
+					total+=This.getFinanciamentoByIndex(i).valorTotal()
+				End If
+			Next
+			Return total
+		End Function
+		Function dividaFinanciamentosNoMes(mes As Integer) As Decimal
+			//Calcula divida de financiamentos em Aberto no mes
+			Var i As Integer
+			Var total As Decimal=0
+			For i=1 To financiamentos.Count
+				If(This.getFinanciamentoByIndex(i).getStatusIndex() = This.getFinanciamentoByIndex(i).STATUS_ABERTO) Then
+					total+=This.getFinanciamentoByIndex(i).valorCobrar(mes)
+				End If
+			Next
+			Return total
+		End Function
+		Function getFinanciamentoByIndex(index As Integer) As Financiamento
+			//Pega financiamento Pela posicao no vetor
+			Return financiamentos.Item(index)
+		End Function
+		Function getFinanciamentoById(id As Integer) As Financiamento
+			//Pega financiamento pelo identificador
+			Var i As Integer = 0
+			Var flagAcho As Boolean = False
+			For i=1 To This.financiamentos.Count
+				If(This.getFinanciamentoByIndex(i).id = id) Then
+					flagAcho=True
+					Break
+				End If
+			Next
+			If(Not flagAcho) Then
+				i=0
+			End If
+			Return This.getFinanciamentoByIndex(i)
+		End Function
+		Method pagaFinanciamentos(mes As Integer)
+			//Paga todos os financiamentos aceitos, de acordo com o mes
+			Var i As Integer = 0			
+			For i=1 To This.financiamentos.Count
+				If(This.getFinanciamentoByIndex(i).getStatusIndex() = This.getFinanciamentoByIndex(i).STATUS_ACEITO) Then
+					This.dinheiro-=This.getFinanciamentoByIndex(i).valorCobrar(mes)
+				End If
+			Next			
+		End Method
+		
+		Method novaProposta(proposta As PropostaCarbono )
+			//Cria nova proposta de carbono
+			This.propostas.Add(proposta)
+		End Method
+		Function analisaPoluicao() As Decimal
+			//Calcula a poluicao no momento da villa
+			Var poluicao As Decimal = 0
+			Var i As Integer = 1
+			//Soma a poluicao total do mes das usinas
+			For i=1 To usinas.Count
+				poluicao += This.getUsinaById(i).grauPoluicao
+			Next
+			//fim soma
+			
+			poluicao-=This.populacao.grau_ambiental*This.populacao.tamanho//Desconta grau de consciencia ambiental da populacao
+					
+			Return poluicao 		
+		End Function
+		Method calculaPoluicao()
+			//Calcula a poluicao do mes da villa
+			Var poluicao As Decimal = 0
+			poluicao = This.analisaPoluicao()
+					
+			This.creditoCarbono += RoundToPlace(This.emissaoCarbono - poluicao,2) //Incrementa ou decrementa o credito de Carbono
+			This.poluicao = RoundToPlace(poluicao,2)// Atribui o novo valor		
+		End Method
+		Method pagaUsinas()
+			//Decrementa o custo mensal da Usinas
+			Var i As Integer = 1				
+			For i=1 To usinas.Count				
+				This.dinheiro -= This.getUsinaById(i).custoMensal	
+				This.dinheiro = RoundToPlace(This.dinheiro,2)
+			Next
+		End Method
+		Method mostraUsinas(painel As Painel)
+			painel.clear()
+			//Mostra usinas da villa
+			Var i As Integer = 1	
+			Var linha As Integer=1
+			//PrintLine("********* Usinas da Villa \""+This.nome+"\" ("+usinas.Count+") *****************")
+			For i=1 To usinas.Count				
+				painel.imprime("Usina: "+This.getUsinaByIndex(i).nome,Colors.White,linha)
+				linha+=1
+				painel.imprime("  Custo Inicial: "+This.getUsinaByIndex(i).custoInicial,Colors.White,linha)
+				linha+=1
+				painel.imprime("  Custo Mensal: "+This.getUsinaByIndex(i).custoMensal,Colors.White,linha)
+				linha+=1
+				painel.imprime("  Energia Produzida: "+This.getUsinaByIndex(i).energiaProduzida,Colors.White,linha)
+				linha+=1
+				painel.imprime("  Grau de poluicao: "+This.getUsinaByIndex(i).grauPoluicao,Colors.White,linha)
+				linha+=1
+				painel.imprime(" ",Colors.White,linha)				
+				linha+=1
+				//PrintLine("\n")
+			Next
+			//PrintLine("*************************************************************")
+		End Method
+		Method mostraPropostas(painel As Painel ,game As Game )
+			//mostra Propostas da Villa, apartir da linha 1
+			This.mostraPropostas(painel,game,1)
+		End Method
+		Method mostraPropostas(painel As Painel , game As Game , startLine As Integer)
+			//mostra Propostas da Villa, apartir de uma certa linha do painel
+			painel.clear()
+			Var i As Integer = 1
+			Var linha As Integer = startLine
+			//PrintLine("*** Propostas da villa \""+This.nome+"\" **********")
+			For i=1 To This.propostas.Count
+				If (Not This.getPropostaByIndex(i).getRemetente() = This)Then
+					Continue
+				End If				
+				If(This.getPropostaByIndex(i).getStatusIndex() <> This.getPropostaByIndex(i).ABERTO And This.getPropostaByIndex(i).mesResposta+1 < game.mesAtual) Then
+					Continue
+				End If
+				//If(This.getPropostaByIndex(i).getStatusIndex() = This.getPropostaByIndex(i).NEGADO Or This.getPropostaByIndex(i).getStatusIndex() = This.getPropostaByIndex(i).CANCELADO) Then
+					painel.imprime(" ID: "+This.getPropostaByIndex(i).id,Colors.White,linha)
+					linha+=1
+					painel.imprime(" Criada por: "+This.getPropostaByIndex(i).getRemetente().nome,Colors.White,linha)
+					linha+=1
+					painel.imprime(" Comprador: "+This.getPropostaByIndex(i).comprador.nome,Colors.White,linha)
+					linha+=1
+					painel.imprime(" Vendedor: "+This.getPropostaByIndex(i).vendedor.nome,Colors.White,linha)
+					linha+=1
+					painel.imprime(" Qunt. Carbono: "+This.getPropostaByIndex(i).creditoCarbono,Colors.White,linha)
+					linha+=1
+					painel.imprime(" Qunt. Dinheiro: "+This.getPropostaByIndex(i).dinheiro,Colors.White,linha)
+					linha+=1
+					painel.imprime(" Mes Realizado: "+This.getPropostaByIndex(i).mesRealizado,Colors.White,linha)
+					linha+=1
+					painel.imprime(" Status: "+This.getPropostaByIndex(i).getStatus(),Colors.White,linha)
+					linha+=1									
+				//End If
+				painel.imprime("",Colors.White,linha)
+				linha+=1
+			Next
+		End Method		
+		
+		Method aceitaProposta(index As Integer , mesAtual As Integer)	
+			//Aceita proposta, atribuindo os respectivos valores
+			If(Not This.getPropostaByIndex(index).getRemetente() = This) Then// Soh pode aceitar se nao for o remetente
+				This.getPropostaByIndex(index).mudaStatus(This.getPropostaByIndex(index).ACEITO)				
+				//O comprador recebe o carbono e paga a quantia em dinheiro
+				This.getPropostaByIndex(index).comprador.creditoCarbono += This.getPropostaByIndex(index).creditoCarbono
+				This.getPropostaByIndex(index).comprador.dinheiro -= This.getPropostaByIndex(index).dinheiro
+				
+				//O vendedor recebe o dinheiro e paga a quantia em carbono
+				This.getPropostaByIndex(index).vendedor.creditoCarbono -= This.getPropostaByIndex(index).creditoCarbono
+				This.getPropostaByIndex(index).vendedor.dinheiro += This.getPropostaByIndex(index).dinheiro				
+				
+				This.getPropostaByIndex(index).mesResposta = mesAtual
+			End If
+		End Method
+		Method negaProposta(index As Integer , mesAtual As Integer)
+			//Nega Proposta, alterando seu status para NEGADO
+			If(Not This.getPropostaByIndex(index).getRemetente() = This) Then//So pode negar se nao for o remetente
+				This.getPropostaByIndex(index).mudaStatus(This.getPropostaByIndex(index).NEGADO)
+				This.getPropostaByIndex(index).mesResposta = mesAtual
+			End If
+		End Method
+		Method cancelaProposta(index As Integer , mesAtual As Integer)
+			//Cancela Proposta em Aberto
+			If(This.getPropostaByIndex(index).getRemetente() = This And This.getPropostaByIndex(index).getStatusIndex() = This.getFinanciamentoByIndex(index).STATUS_ABERTO) Then
+				//Apenas o remetente pode cancelar
+				This.getPropostaByIndex(index).mudaStatus(This.getPropostaByIndex(index).CANCELADO)
+				This.getPropostaByIndex(index).mesResposta = mesAtual
+			End If
+		End Method
+		
+		Function calculaEnergia() As Decimal
+			//Calcula Energia produzida por mes, retornado a mesma
+			Var energia As Decimal = 0
+			Var i As Integer = 1
+			//Soma a energia total do mes das usinas
+			For i=1 To usinas.Count
+				energia += This.getUsinaByIndex(i).energiaProduzida
+			Next
+			//fim soma
+			Return energia
+		End Function
+		Function calculaGastoUsinas() As Decimal
+			//Calcula gasto com usinas por mes
+			Var gasto As Decimal = 0
+			Var i As Integer = 1
+			//Soma a energia total do mes das usinas
+			For i=1 To usinas.Count
+				gasto += This.getUsinaById(i).custoMensal
+			Next
+			//fim soma
+			Return gasto
+		End Function
+								
+		Method novoInvestimento(valorInicial As Decimal)
+			//Inicia novo investimento
+			This.investimento.inicia(valorInicial)
+			This.dinheiro-=valorInicial			
+		End Method
+		Method mostraInvestimento(painel As Painel)
+			//imprime investimentos em aberto
+			painel.clear()
+			If(This.investimento.Status = This.investimento.STATUS_ABERTO) Then
+				Var linha As Integer = 1
+				painel.imprime("ID: "+This.investimento.id,Colors.White,linha)
+				linha+=1
+				//painel.imprime("Investido na villa: "+This.investimento.villa.nome,Colors.White,linha)
+				//linha+=1
+				painel.imprime("Dinheiro Inicial: "+This.investimento.dinheiroInicial,Colors.White,linha)
+				linha+=1
+				painel.imprime("Dinheiro Atual: "+This.investimento.dinheiroAtual,Colors.White,linha)
+				linha+=1
+				painel.imprime("Status: "+This.investimento.getStatus(),Colors.White,linha)
+				linha+=1
+				If(This.isPositivo) Then
+					painel.imprime("Taxa: "+This.taxaInvestimento,Colors.White,linha)
+				Else 
+					painel.imprime("Taxa: -"+This.taxaInvestimento,Colors.White,linha)
+				End If
+				linha+=1
+			End If
+		End Method
+		Method calculaTaxa()
+			//Calcula Taxa de invetimento da villa, atualizando a mesma
+			Var taxa As Decimal = (This.emissaoCarbono - This.poluicao)			
+			This.taxaInvestimento = (taxa)/This.creditoCarbono			
+			If(taxa>0) Then
+				This.isPositivo = True
+			Else
+				This.isPositivo = False
+			End If
+			This.taxaInvestimento= RoundToPlace(Abs(This.taxaInvestimento),3)
+			This.investimento.atualizaValor(This)
+		End Method			
+		
+		Method calculaPopulacao()
+			//Atualiza Tamanho da populacao, de acordo com a energia que é produzida
+			//Cada energia produzida vale 20 habitantes
+			Var proporcao As Decimal
+			
+			//Tamanho da Populacao 1/20
+			proporcao = This.calculaEnergia()/20
+			
+			//If(This.historico.populacao.count>2) Then
+			
+				//Var delta As Integer = This.historico.calculaVariacaoTamanho(This.historico.populacao.count-1,This.historico.populacao.count)[1,1]
+				//Var ultimoMes As Integer = This.historico.calculaVariacaoTamanho(This.historico.populacao.count-1,This.historico.populacao.count)[1,2]
+			
+				If(This.populacao.tamanho>=Floor(proporcao))Then
+					This.populacao.tamanho = Floor(This.populacao.tamanho*0.7)				
+				Else If(This.populacao.tamanho<Floor(proporcao)) Then
+					This.populacao.tamanho = Ceiling(This.populacao.tamanho*1.10)	
+					If(Ceiling(This.populacao.tamanho*2.0) > This.emissaoCarbono)Then
+						This.emissaoCarbono = Ceiling(This.populacao.tamanho*2.0)
+					End If
+					This.populacao.valorImposto = Ceiling(This.calculaEnergia()/13)
+					If(This.populacao.tamanho=0)Then
+						This.populacao.tamanho=1		
+					End If
+				End If			
+			
+			//End If
+			//Grau financeiro 1/25
+			proporcao = This.calculaEnergia()/25
+			If(Floor(proporcao)=0)Then
+				This.populacao.grau_financeiro = Floor(This.populacao.grau_financeiro*0.9)				
+			Else If(This.populacao.grau_financeiro<Floor(proporcao)) Then
+				This.populacao.grau_financeiro = Ceiling(This.populacao.grau_financeiro*1.10)	
+				If(This.populacao.grau_financeiro=0)Then
+					This.populacao.grau_financeiro=1		
+				End If
+			End If			
+			
+			//Grau escolaridade 1/25
+			proporcao = This.calculaEnergia()/25
+			If(Floor(proporcao)=0)Then
+				This.populacao.grau_escolaridade = Floor(This.populacao.grau_escolaridade*0.7)				
+			Else If(This.populacao.grau_escolaridade<Floor(proporcao)) Then
+				This.populacao.grau_escolaridade = Ceiling(This.populacao.grau_escolaridade*1.10)	
+				If(This.populacao.grau_escolaridade=0)Then
+					This.populacao.grau_escolaridade=1		
+				End If
+			End If
+			
+			//Grau ambiental 1/30
+			proporcao = This.calculaEnergia()/30
+			If(Floor(proporcao)=0 Or This.creditoCarbono< 0)Then
+				This.populacao.grau_ambiental = Floor(This.populacao.grau_ambiental*0.7)				
+			Else If(This.populacao.grau_ambiental<Floor(proporcao)) Then
+				This.populacao.grau_ambiental = Ceiling(This.populacao.grau_ambiental*1.05)	
+				If(This.populacao.grau_ambiental=0)Then
+					This.populacao.grau_ambiental=1		
+				End If
+			End If
+			
+		End Method
+		
+		
+	End Class
+	
+	Class Populacao
+		Var id As Integer
+		Var grau_escolaridade As Decimal
+		Var grau_ambiental As Decimal
+		Var grau_financeiro As Decimal
+		Var tamanho As Integer		
+		Var valorImposto As Integer
+		Method setup(id As Integer , grau_escolaridade As Decimal , grau_ambiental As Decimal , grau_financeiro As Decimal , tamanho As Integer ,valorImposto As Decimal )
+			This.id = id
+			This.grau_escolaridade = grau_escolaridade
+			This.grau_ambiental = grau_ambiental
+			This.grau_financeiro = grau_financeiro
+			This.tamanho = tamanho
+			This.valorImposto = valorImposto
+		End Method
+		
+		Function recolherImpostos() As Decimal
+			//retorna o valor do imposto
+			Return This.tamanho * This.valorImposto
+		End Function
+	End Class
+
+	Class Usina
+		Var id As Integer
+		Var nome As String
+		Var grauPoluicao As Decimal
+		Var custoInicial As Decimal
+		Var custoMensal As Decimal
+		Var energiaProduzida As Integer
+		Define image As Sprite
+		
+		Method setup(id As Integer , nome As String, grauPoluicao As Decimal, custoInicial As Decimal, CustoMensal As Decimal, energiaProduzida As Integer, endImagem As String)	
+			//image.Load(endImagem)
+			//image.Hide()
+			This.id = id
+			This.nome = nome
+			This.grauPoluicao = grauPoluicao
+			This.custoInicial = custoInicial
+			This.custoMensal = custoMensal
+			This.energiaProduzida = energiaProduzida
+		End Method
+		
+		Method aumentarProducao()
+			// Aumenta a Producao de energia
+			This.energiaProduzida = RoundToPlace(This.energiaProduzida *1.25,2)
+			This.custoMensal += RoundToPlace(This.custoInicial * 1.10,2)
+			This.grauPoluicao = RoundToPlace(This.grauPoluicao * 1.05,2)
+		End Method
+	End Class
+	
+	Class Financiamento
+		//Financiamento de Dinheiro ou Carbono e Pagamento apenas em Dinheiro
+		Constant STATUS_ABERTO As Integer = 1
+		Constant STATUS_ACEITO As Integer = 2
+		Constant STATUS_NEGADO As Integer = 3
+		Constant STATUS_FINALIZADO As Integer = 4	
+		Constant TIPO_CARBONO As Integer = 1
+		Constant TIPO_DINHEIRO As Integer = 2
+		Var id As Integer
+		Var valorInicial As Decimal
+		Var juros As Decimal
+		Var mesInicial As Integer
+		Var mesFinal As Integer
+		Var tipo As Integer
+		Define villa As Villa
+		Private Var status As Integer
+		Var mesPago As Integer=0 //Ultimo mes pago
+		
+		Method setup(id As Integer , valorInicial As Integer , juros As Decimal , mesInicial As Integer , mesFinal As Integer , tipo As Integer , villa As Villa , status As Integer)
+			This.id = id
+			This.valorInicial = valorInicial
+			This.juros = juros
+			This.mesInicial = mesInicial
+			This.mesFinal = mesFinal
+			This.tipo = tipo
+			This.villa = villa
+			This.status = status		
+			villa.addFinanciamento(This)
+		End Method
+		
+		Method pagaFinanciamento(mes As Integer)
+			//Realiza o pagamento do mes corrente
+			If This.status = This.STATUS_ACEITO Then
+				Var valor As Decimal = This.valorCobrar(mes)
+				If(valor>0) Then
+					This.villa.dinheiro-= valor
+					This.mesPago = mes
+					If(This.mesPago = This.mesFinal) Then
+						This.status = This.STATUS_FINALIZADO
+					End If
+				End If
+			End If				
+		
+			
+		End Method
+			
+		Function valorCobrar(mes As Integer) As Decimal
+			//retorna o valor a ser cobrado no mes
+			If(mes<=This.mesInicial Or mes > This.mesFinal)Then
+				Return 0				
+			End If
+			Var valor As Decimal
+			valor = Power(This.juros,mes-This.mesInicial) * This.valorInicial/(This.mesFinal-This.mesInicial)			
+			Return Math.RoundToPlace(valor,2)
+		End Function
+		Function valorTotal() As Decimal
+			//Retorna o valor que sera pago no total, somando o de cada mes.
+			Var i As Integer
+			Var total As Decimal=0			
+			For i=This.mesInicial To This.mesFinal				
+				total+=This.valorCobrar(i)
+			Next			
+			Return total
+		End Function
+		
+		Function mostraPespectiva(painel As Painel ,startLine As Integer ) As Integer
+			//mostra o quanto sera pago em cada mes
+			Var i As Integer
+			Var total As Decimal=0	
+			Var linha As Integer = startLine
+			painel.imprime(" ID: "+This.id,Colors.White,linha)
+			linha+=1
+			For i=This.mesInicial To This.mesFinal				
+				painel.imprime(" Mes "+i+" : $ "+This.valorCobrar(i),Colors.White,linha)
+				linha+=1
+				total+=This.valorCobrar(i)
+			Next
+			painel.imprime(" Total a cobrar : $ "+total,Colors.White,linha)
+			linha+=1
+			painel.imprime("",Colors.White,linha)
+			Return linha+1
+		End Function
+		Function getStatus() As String
+			Select This.status
+				Case 1
+					Return("ABERTO")
+				End Case
+				Case 2
+					Return("ACEITO")
+				End Case				
+				Case 3
+					Return("NEGADO")
+				End Case
+				Case 4
+					Return("FINALIZADO")
+				End Case
+			End Select
+			Return("DESCONHECIDO")
+		End Function	
+		Function getStatusIndex() As Integer
+			Return status
+		End Function
+		Function getTipo() As String
+			//Pega Tipo para Imprimir
+			Select This.tipo
+				Case 1
+					Return("CARBONO")
+				End Case
+				Case 2
+					Return("DINHEIRO")
+				End Case								
+			End Select
+			Return("DESCONHECIDO")
+		End Function
+		
+		Method mudaStatus(novoStatus As Integer) // Soh pode alterar o Status se Ele estiver Aberto
+			If(This.status = This.STATUS_ABERTO) Then
+				This.status = novostatus
+			End If
+		End Method
+		
+	End Class
+	
+	Class Historico
+		Define carbono As GenericList //Decimal
+		Define dinheiro As GenericList//Decimal
+		
+		Define populacao As GenericList//Populacao
+		Define energia As GenericList//Decimal			
+		
+		Method registraCarbono(quantidade As Decimal)
+			This.carbono.Add(quantidade)
+		End Method
+		Function getCarbonoFrom(mes As Integer) As Decimal
+			Return This.carbono.Item(mes)
+		End Function
+		
+		Method registraDinheiro(valor As Decimal)
+			This.dinheiro.Add(valor)
+		End Method
+		Function getDinheiroFrom(mes As Integer) As Decimal
+			Return This.dinheiro.Item(mes)
+		End Function
+		
+		Method registraPopulacao(populacao As Populacao)
+			//Passa so os parametros			
+			Define nova As Populacao
+			nova.grau_ambiental = populacao.grau_ambiental
+			nova.grau_escolaridade = populacao.grau_escolaridade
+			nova.grau_financeiro = populacao.grau_financeiro
+			nova.id = populacao.id
+			nova.tamanho = populacao.tamanho
+			nova.valorImposto = populacao.valorImposto
+			
+			This.populacao.Add(nova)
+		End Method
+		Function getPopulacaoFrom(mes As Integer) As Populacao
+			Return This.populacao.Item(mes)
+		End Function
+		
+		Method registraEnergia(quantidade As Decimal)
+			This.energia.Add(quantidade)
+		End Method
+		Function getEnergiaFrom(mes As Integer) As Decimal
+			Return This.energia.Item(mes)
+		End Function
+		
+		Private Method desenhaReta(fromX As Decimal,fromY As Decimal,toX As Decimal, toY As Decimal , color As Integer)
+			Define caneta As Pen						
+			If(fromX <> 0) Then
+				caneta.MoveTo(fromX+2,fromY)
+				caneta.Color = color
+				caneta.DrawTo(toX,toY)							
+			End If
+			Define centro As Point
+			centro.X = toX
+			centro.Y = toY
+			Define circle As Circle
+			circle.Color = Colors.White
+			circle.Center = centro
+			circle.Filled = True
+			circle.Radius = 2
+			circle.Draw()								
+		End Method
+		
+		Method desenhaGraficos(painel As Painel)
+			This.desenhaGraficoCarbono(painel)
+			This.desenhaGraficoDinheiro(painel)
+			This.desenhaGraficoEnergia(painel)
+			This.desenhaGraficoPopulacao(painel)
+		End Method
+		
+		Private Method desenhaGraficoCarbono(painel As Painel)
+			Define valores As Decimal[This.carbono.Count]
+			Var i As Integer
+			For i=1 To This.carbono.Count
+				valores[i] = This.getCarbonoFrom(i)
+			Next
+			This.desenhaGraficoAt(painel, valores,Colors.Chocolate,"Carbono",3)
+		End Method
+		
+		Private Method desenhaGraficoEnergia(painel As Painel)
+			Define valores As Decimal[This.energia.Count]
+			Var i As Integer
+			For i=1 To This.energia.Count
+				valores[i] = This.getEnergiaFrom(i)
+			Next
+			This.desenhaGraficoAt(painel, valores,Colors.DarkRed,"Energia",4)
+		End Method
+		
+		Private Method desenhaGraficoDinheiro(painel As Painel)
+			Define valores As Decimal[This.dinheiro.Count]
+			Var i As Integer
+			For i=1 To This.dinheiro.Count
+				valores[i] = This.getDinheiroFrom(i)
+			Next
+			This.desenhaGraficoAt(painel, valores,Colors.DarkViolet,"Dinheiro",1)
+		End Method
+		
+		Private Method desenhaGraficoPopulacao(painel As Painel)			
+			//Define grau_ambiental As Decimal[This.populacao.Count]
+			//Define grau_escolaridade As Decimal[This.populacao.Count]
+			//Define grau_financeiro As Decimal[This.populacao.Count]
+			Define tamanho As Decimal[This.populacao.Count]
+			Var i As Integer
+			For i=1 To This.populacao.Count				
+			//	grau_ambiental[i] = This.getPopulacaoFrom(i).grau_ambiental
+			//	grau_escolaridade[i] = This.getPopulacaoFrom(i).grau_escolaridade
+			//	grau_financeiro[i] = This.getPopulacaoFrom(i).grau_financeiro
+				tamanho[i] = This.getPopulacaoFrom(i).tamanho
+			Next
+			//This.desenhaGraficoAt(painel, grau_ambiental,Colors.BlueViolet,"Nivel Ambiental",2)
+			//This.desenhaGraficoAt(painel, grau_escolaridade,Colors.Chocolate,"Nivel Escolaridade",3)
+			//This.desenhaGraficoAt(painel, grau_financeiro,Colors.DarkBlue,"Nivel Financeiro",4)
+			This.desenhaGraficoAt(painel, tamanho,Colors.DarkGreen,"Tamanho",2)
+		End Method
+		
+		Private Method addLinhaDoTempo(valor As Integer , posicaoX As Decimal,painel As Painel)
+			Drawing.Color(Colors.Black)
+			Drawing.PrintInRectangle(valor,posicaoX-4*Length(ConvertToString(valor)),painel.Y,60,15)			
+			Var pontoY As Decimal = painel.Y + 15
+			While(pontoY < painel.Y+painel.heigth)
+				Drawing.Pen(False)
+				Drawing.MoveTo(posicaoX, pontoY)
+				Drawing.Pen(True)
+				Drawing.DrawPoint(posicaoX, pontoY,Colors.LightGray)
+				
+				pontoY+=10
+			End While
+			
+		End Method
+		
+		Private Method desenhaGraficoAt(painel As Painel , valores As Decimal[],color As Integer,legenda As String,posicao As Integer)
+			//Desenha Grafico
+			Var i As Integer
+			Var previousX As Decimal = painel.X
+			Var previousY As Decimal
+			Var centroY As Decimal 
+			Var espaco As Integer = 1
+			Var inicio As Integer = 1	
+			Var delta As Integer = 20
+			
+			If(ArrayLength(valores)>0) Then
+				If(ArrayLength(valores)>9)Then
+					inicio = ArrayLength(valores) - 9
+				End If
+				
+				If(Abs(valores[inicio]/valores[ArrayLength(valores)])>2 Or Abs(valores[ArrayLength(valores)]/valores[inicio])>2)Then
+					delta = 11
+				End If
+				
+				Var proporcao As Decimal
+				If(valores[inicio] = 0)Then
+					proporcao = 1
+				Else
+					proporcao = delta/Abs(valores[inicio])
+				End If
+				//If(posicao = 1) Then
+					//centroY = painel.Y + 80
+				//Else
+					centroY = painel.Y+ 40 + 75*posicao
+				//End If
+				
+				previousY = centroY-10
+				
+				Var gapX As Integer = 60
+				Var startX As Integer = 110
+				
+				If(centroY - proporcao*valores[inicio]> painel.Y+24) Then
+					This.desenhaReta(0,previousY,previousX+startX,centroY - proporcao*valores[inicio],color)
+					Drawing.Color(Colors.White)
+					PrintInRectangle(valores[inicio],previousX+startX-2*Length(ConvertToString(valores[inicio])),centroY - proporcao*valores[inicio]-15,gapX-5,13)
+				End If
+				previousX = previousX+startX
+				previousY = centroY - proporcao*valores[inicio]				
+				
+				Drawing.Color(color)
+				PrintInRectangle(legenda,previousX-startX,previousY-7,startX-5,13)					
+				This.addLinhaDoTempo(inicio,previousX,painel)
+				
+				For i=inicio+1 To ArrayLength(valores)
+					If(i Mod espaco = 0)Then	
+						This.addLinhaDoTempo(i,previousX+gapX,painel)
+						If(centroY - proporcao*valores[i]> painel.Y+24) Then
+							This.desenhaReta(previousX,previousY,previousX+gapX,centroY - proporcao*valores[i],color)
+							Drawing.Color(Colors.White)
+							PrintInRectangle(valores[i],previousX+gapX- 2*Length(ConvertToString(valores[i])),centroY - proporcao*valores[i]-15,gapX-5,13)
+						End If
+						previousX = previousX+gapX
+						previousY = centroY - proporcao*valores[i]												
+					
+					End If
+				Next
+				
+				
+			End If
+		End Method
+		
+		Method montaPainel(painel As Painel)
+			Drawing.Pen(False)
+			Drawing.MoveTo(painel.X,painel.Y)
+			Drawing.Pen(True)				
+			Drawing.Color(Colors.White)
+			Define rectangle As PointList
+			Define vertice1 As Point
+			vertice1.X = painel.X
+			vertice1.Y = painel.Y
+			
+			Define vertice2 As Point
+			vertice2.X = painel.X + painel.width
+			vertice2.Y = painel.Y
+			
+			Define vertice3 As Point
+			vertice3.X = painel.X + painel.width
+			vertice3.Y = painel.Y + 15
+			
+			Define vertice4 As Point
+			vertice4.X = painel.X
+			vertice4.Y = painel.Y+15
+			
+			rectangle.Add(vertice1)
+			rectangle.Add(vertice2)
+			rectangle.Add(vertice3)
+			rectangle.Add(vertice4)
+			
+			Drawing.DrawPolygon(rectangle,True)
+						
+			Drawing.Color(Colors.Black)
+			Drawing.PrintInRectangle("Mes",painel.X,painel.Y,60,15)	
+		End Method
+		
+		Function calculaVariacaoDinheiro(fromMes As Integer , toMes As Integer) As Decimal[,]
+			Define retorno As Decimal [1,2]
+			If(fromMes = 1)Then
+				retorno[1,1] = This.getDinheiroFrom(toMes) - This.getDinheiroFrom(fromMes)
+				retorno[1,2] = fromMes
+				Return retorno
+			End If
+			Var delta As Integer = This.getDinheiroFrom(toMes) - This.getDinheiroFrom(fromMes)
+			If (delta<=0) Then //Caso a populacao tenha diminuido
+				Return This.calculaVariacaoDinheiro(fromMes-1,toMes)
+			End If
+			
+			retorno[1,1] = This.getDinheiroFrom(toMes) - This.getDinheiroFrom(fromMes+1)
+			retorno[1,2] = fromMes+1
+			Return retorno
+		End Function
+		
+		Function calculaVariacaoTamanho(fromMes As Integer , toMes As Integer) As Integer[,]
+			Define retorno As Integer [1,2]
+			If(fromMes = 1)Then
+				retorno[1,1] = This.getPopulacaoFrom(toMes).tamanho - This.getPopulacaoFrom(fromMes).tamanho
+				retorno[1,2] = fromMes
+				Return retorno
+			End If
+			Var delta As Integer = This.getPopulacaoFrom(toMes).tamanho - This.getPopulacaoFrom(fromMes).tamanho							
+			If (delta<=0) Then //Caso a populacao tenha diminuido
+				Return This.calculaVariacaoTamanho(fromMes-1,toMes)
+			End If
+			
+			retorno[1,1] = This.getPopulacaoFrom(toMes).tamanho - This.getPopulacaoFrom(fromMes+1).tamanho
+			retorno[1,2] = fromMes+1
+			Return retorno
+		End Function
+		
+		Function calculaVariacaoEnergia(fromMes As Integer , toMes As Integer) As Integer[,]
+			Define retorno As Integer [1,2]
+			If(fromMes = 1)Then
+				retorno[1,1] = This.getEnergiaFrom(toMes) - This.getEnergiaFrom(fromMes)
+				retorno[1,2] = fromMes
+				Return retorno
+			End If
+			Var delta As Integer = This.getEnergiaFrom(toMes) - This.getEnergiaFrom(fromMes)
+			If (delta<=0) Then //Caso a populacao tenha diminuido
+				Return This.calculaVariacaoEnergia(fromMes-1,toMes)
+			End If
+			
+			retorno[1,1] = This.getEnergiaFrom(toMes) - This.getEnergiaFrom(fromMes+1)
+			retorno[1,2] = fromMes+1
+			Return retorno
+		End Function
+		
+		 Function calculaVariacaoCarbono(fromMes As Integer , toMes As Integer) As Decimal[,]
+			Define retorno As Decimal [1,2]
+			If(fromMes = 1)Then
+				retorno[1,1] = This.getCarbonoFrom(toMes) - This.getCarbonoFrom(fromMes)
+				retorno[1,2] = fromMes
+				Return retorno
+			End If
+			Var delta As Integer = This.getCarbonoFrom(toMes) - This.getCarbonoFrom(fromMes)
+			If (delta<=0) Then //Caso a populacao tenha diminuido
+				Return This.calculaVariacaoCarbono(fromMes-1,toMes)
+			End If
+			
+			retorno[1,1] = This.getCarbonoFrom(toMes) - This.getCarbonoFrom(fromMes+1)
+			retorno[1,2] = fromMes+1
+			Return retorno
+		End Function
+	End Class
+	
+	Class BarraTempo
+		Var x As Decimal = 2
+		Var y As Decimal = 2
+		Var width As Decimal = 100
+		Var height As Decimal = 20
+		
+		Var back As Integer = Colors.White
+		Var back2 As Integer = Colors.DarkBlue
+		
+		Private Var cor As Integer = 255
+		
+		Method desenhaBarra()
+			Define borda As Rectangle = Drawing.CreateRectangle(x-2,y-2,width+24,height+4)
+			borda.Color = back
+			borda.Filled = True
+			borda.Draw()
+			Define retangulo As Rectangle = Drawing.CreateRectangle(x,y,width,height)
+			retangulo.Color = back2
+			retangulo.Filled = True
+			retangulo.Draw()
+		End Method
+		Method mostraTempo(mes As Integer, porcentagem As Decimal)			
+			//This.desenhaBarra()
+			
+							
+			
+			
+			//Drawing.PrintInRectangle(mes,x,y,width,height)
+		End Method
+		
+		Method atualizaProgress(porcentagem As Decimal, mes As Integer)	
+			If(porcentagem = 0)Then
+				cor = 255
+			End If
+			Var positionX As Decimal = x+(porcentagem*This.width)-(height)
+			Var positionY As Decimal = y+(height/2)
+
+			Drawing.Pen(False)
+			Drawing.MoveTo(positionX+(height/2),positionY)
+			Drawing.Pen(True)
+			Drawing.ColorRGB(200,cor,cor)
+
+			Drawing.Circle(height,True)			
+			cor-=1
+			
+			Drawing.Color(Colors.Black)
+			Drawing.PrintInRectangle(ConvertToString(mes),This.x+This.width,y+2,20,15)
+			
+		End Method
+	End Class
+	
+	Function criaUsinas()As GenericList		
+		//Inicializa Usinas, disponibilizando-as para os jogadores
+		Define usinas As GenericList	
+		
+		Define usina As Usina		
+		usinaId+=1
+		usina.setup(usinaId,"Usina 1",500,140.00,40,300,"usinas/teste.gif")			
+		usinas.Add(usina)					
+		
+		Define usina2 As Usina		
+		usinaId+=1
+		usina2.setup(usinaId,"Usina 2",200,460.00,20,200,"usinas/teste.gif")			
+		usinas.Add(usina2)
+		
+		Define usina3 As Usina		
+		usinaId+=1
+		usina3.setup(usinaId,"Usina 3",1000,1460.00,200,2000,"usinas/teste.gif")			
+		usinas.Add(usina3)
+		
+		Define usina4 As Usina		
+		usinaId+=1
+		usina4.setup(usinaId,"Usina 4",3000,1050.00,570,2500,"usinas/teste.gif")			
+		usinas.Add(usina4)
+		
+		Define usina5 As Usina
+		usinaId+=1
+		usina5.setup(usinaId,"Usina 5",330,940.00,500,210,"usinas/teste2.jpg")			
+		usinas.Add(usina5)
+		
+		Return usinas		
+	End Function
+	
+	Function criaJogador(game As Game , nomeVilla As String) As Jogador
+		//Cria nova instancia de jogador humano
+		Define populacao As Populacao
+		populacaoId+=1
+		populacao.setup(populacaoId,5*game.nivel,2*game.nivel,4*game.nivel,30,3*game.nivel)		
+		
+		Define villa As Villa
+		villaId+=1
+		villa.setup(villaId,nomeVilla,150*game.nivel,10*game.nivel,60/game.nivel,populacao)
+				
+		Define jogador As Jogador
+		jogador.setup(0,villa)
+		Return jogador
+	End Function
+	
+	Function criaPcVilla(game As Game , nomeVilla As String,letreiro As Letreiro) As PcVilla
+		//Adiciona nova instancia de jogador PC
+		Var pcLevel As Integer = Math.Random(1,5)
+		
+		Define populacao As Populacao
+		populacaoId+=1
+		populacao.setup(populacaoId,pcLevel*3*game.nivelPc,pcLevel*2*game.nivelPc,pcLevel*3*game.nivelPc,pcLevel*7,3*pcLevel)		
+		
+		Define villa As Villa
+		villaId+=1
+		villa.setup(villaId,nomeVilla,pcLevel*200*game.nivelPc,pcLevel*100*game.nivelPc,pcLevel*70/game.nivelPc,populacao)
+		
+		
+		Define pcVilla As PcVilla
+		pcVillaId+=1
+		pcVilla.setup(pcVillaId,villa)
+		pcVilla.letreiro = letreiro
+		
+		Return pcVilla
+	End Function
+	
+	Function criaProposta(mesRealizado As Integer , comprador As Villa , vendedor As Villa , creditoCarbono As Decimal , dinheiro As Decimal , flagVenda As Boolean) As PropostaCarbono
+		//Cria nova instancia de PropostaCarbono
+		Define proposta As PropostaCarbono
+		propostaId+=1
+		proposta.setup(propostaId,mesRealizado,proposta.ABERTO,comprador,vendedor,creditoCarbono,dinheiro,flagVenda)
+		Return proposta
+	End Function
+	Function criaFinanciamento(valorInicial As Integer , juros As Decimal , mesInicial As Integer , mesFinal As Integer , tipo As Integer , villa As Villa) As Financiamento
+		//Cria nova instancia de Financiamento
+		Define financiamento As Financiamento
+		financiamentoId+=1
+		financiamento.setup(financiamentoId,valorInicial,juros,mesInicial,mesFinal,tipo,villa,financiamento.STATUS_ABERTO)
+		Return financiamento
+	End Function
+		
+	Method mostraDadosVilla(villa As Villa , painel As Painel)
+		//imprime dados da villa em um painel
+		//PrintLine("**************************************************************")		
+		painel.imprime("ID: "+villa.id,Colors.White,1)
+		painel.imprime("Nome: "+villa.nome,Colors.White,2)
+		painel.imprime("Carbono: "+villa.creditoCarbono,Colors.White,3)
+		painel.imprime("Dinheiro: "+villa.dinheiro,Colors.White,4)
+		painel.imprime("Emissao Maxima: "+villa.emissaoCarbono,Colors.White,5)
+		painel.imprime("Populacao ("+villa.populacao.id+"):",Colors.White,6)		
+		painel.imprime("  Consciencia Ambiental: "+villa.populacao.grau_ambiental,Colors.White,7)
+		painel.imprime("  Nivel Escolaridade: "+villa.populacao.grau_escolaridade,Colors.White,8)
+		painel.imprime("  Nivel Financeiro: "+villa.populacao.grau_financeiro,Colors.White,9)
+		painel.imprime("  Numero Habitantes: "+villa.populacao.tamanho,Colors.White,10)
+		painel.imprime("  Imposto/Habitante: "+villa.populacao.valorImposto,Colors.White,11)
+		If(villa.isPositivo) Then
+			painel.imprime("Taxa: "+villa.taxaInvestimento,Colors.White,12)
+		Else 
+			painel.imprime("Taxa: -"+villa.taxaInvestimento,Colors.White,12)
+		End If		
+		//PrintLine("**************************************************************")
+	End Method	
+	
+	Function escolheVilaNome(nomes As String[]) As String
+		//Escolhe aleatoriamente um nome da villa, que seja unico
+		Var nome As String = ""
+		Var index As Integer
+		While Compare(nome,"",False)=0
+			index = Math.Random(1,ArrayLength(nomes))
+			nome = nomes[index]
+		End While
+		nomes[index] = ""
+		Return nome
+	End Function
+	
+	Method mostraData(mes As Integer , frames As Integer)
+		//Atualiza Painel do Tempo de Jogo transcorrido
+		Drawing.Color(Colors.White)
+		Drawing.Pen(True)
+		Drawing.MoveTo(0,0)
+		Rectangle(50,15,True)
+		Drawing.Color(Colors.Black)
+		PrintInRectangle(mes+"  "+frames,0,0,50,15)
+		RefreshScreen()
+	End Method	
+	
+	Method Main()
+		SetFont(Fonts.Arial,8,False,False,False)
+		SetWindowTitle("Carbon Kingdom ")			
+		//Shell.Maximize()
+		Shell.SetScreenSize(1024,768)
+		
+		ClearBackground ( Colors.White )
+		Define logo As Sprite
+		logo.Load("images/logo.gif")
+		logo.MoveTo(ScreenWidth()/2-logo.Width/2,ScreenHeight()/2-logo.Height/2)
+		logo.Show()		
+		
+		delay(3500)
+		logo.Hide()
+		
+		
+		Define BackgroundColor As Integer = DarkSeaGreen		
+		ClearBackground ( BackgroundColor )
+		
+		//Nomes das villas do pc
+		Define villaNomes As String[maxPcVilla] = {"Villa do Osama","Green Villa","Death Villa","Heaven Villa","Microsoft Villa","Bill Gaites Villa","Villa do Raphabot","Villa dos sem Villa","Villa do cara","Villa do Joao"}
+		
+		Define banco As Banco
+		banco.setup(1.15)
+		
+		Define game As Game	
+		game.setup(1,1,1, banco)		
+		game.jogador = criaJogador(game,"Minha Villa Teste")	// cria a villa do jogador	
+		game.usinas = criaUsinas()	// cria usinas a serem usadas no jogo	
+		game.windowBackground = BackgroundColor
+		
+		//Cria Villas Controladas pelo pc
+		Define logs As Painel
+		Define letreiro As Letreiro
+		letreiro.painel = logs
+		Var i As Integer
+		For i=1 To 4
+			If(i>maxPcVilla) Then
+				Break
+			End If
+			game.addPcVilla(criaPcVilla(game,escolheVilaNome(villaNomes),letreiro))		
+		Next
+		//fim							
+		mostraPainelLogs(game, logs)
+		//Inicializa Paineis
+		Define painelsToErase As Painel[game.pcVillas.Count+8]
+		
+		Define barratempo As BarraTempo
+		barratempo.desenhaBarra()
+		//Define tempo As Painel
+		//tempo.setup(0,0,50,1,15,Colors.Black)
+		//tempo.windowBackground = game.windowBackground
+				
+		
+		Define minhaVilla As Painel
+		painelsToErase[1]= minhaVilla
+		
+		Define usinas As Painel		
+		painelsToErase[2]= usinas			
+		
+		Define financiamentos As Painel		
+		painelsToErase[3]= financiamentos
+		
+		Define pespectivas As Painel		
+		painelsToErase[4]= pespectivas
+		
+		Define investimentos As Painel
+		painelsToErase[5]= investimentos
+		
+		Define propostas As Painel
+		painelsToErase[6]= propostas
+		
+		Define infoUsina As Painel
+		painelsToErase[7]= infoUsina
+		
+		Define grafico As Painel
+		painelsToErase[8]= grafico
+				
+		Define cpus As Painel[game.pcVillas.Count]
+		For i=1 To ArrayLength(cpus)
+			painelsToErase[8+i]=cpus[i]
+		Next
+		
+		//Cria Buttons de Menus					
+		//Menu de Usinas
+		Define usina1 As Button
+		usina1.setup( 10, True, 125, 255, 125, BackgroundColor, "Usina 1", 120 ,210,ScreenHeight()-logs.heigth-usina1.Height*1.5)			
+		Define usina2 As Button
+		usina2.setup( 10, True, 125, 255, 125, BackgroundColor, "Usina 2", 120 ,usina1.image.X+usina1.image.Width,ScreenHeight()-logs.heigth-usina2.Height*1.5)
+		Define usina3 As Button
+		usina3.setup( 10, True, 125, 255, 125, BackgroundColor, "Usina 3", 120 ,usina2.image.X+usina2.image.Width,ScreenHeight()-logs.heigth-usina3.Height*1.5)
+		Define usina4 As Button
+		usina4.setup( 10, True, 125, 255, 125, BackgroundColor, "Usina 4", 120 ,usina3.image.X+usina3.image.Width,ScreenHeight()-logs.heigth-usina4.Height*1.5)
+		Define usina5 As Button
+		usina5.setup( 10, True, 125, 255, 125, BackgroundColor, "Usina 5", 120 ,usina4.image.X+usina4.image.Width,ScreenHeight()-logs.heigth-usina5.Height*1.5)
+		//Fim Menu
+		
+		//Menu para navegar		
+		Define showMinhaVilla As Button
+		showMinhaVilla.setup( 10, True, 125, 125, 175, BackgroundColor, "Minha Villa", 120 ,0,27)	
+		
+		Define showUsinas As Button
+		showUsinas.setup( 10, True, 125, 125, 175, BackgroundColor, "Minhas usinas", 120 ,showMinhaVilla.x,showMinhaVilla.y+showMinhaVilla.image.Height)
+		
+		Define showFinanciamentos As Button
+		showFinanciamentos.setup( 10, True, 125, 125, 175, BackgroundColor, "Financiamentos", 120 ,showUsinas.x,showUsinas.y+showUsinas.image.Height)
+		
+		Define showPespectivas As Button
+		showPespectivas.setup( 10, True, 125, 125, 175, BackgroundColor, "Perspectiva", 120 ,showUsinas.x,showFinanciamentos.y+showFinanciamentos.image.Height)
+		
+		Define showInvestimentos As Button
+		showInvestimentos.setup( 10, True, 125, 125, 175, BackgroundColor, "Investimentos", 120 ,showUsinas.x,showPespectivas.y+showPespectivas.image.Height)
+		
+		Define showPropostas As Button
+		showPropostas.setup( 10, True, 125, 125, 175, BackgroundColor, "Propostas", 120 ,showUsinas.x,showInvestimentos.y+showInvestimentos.image.Height)
+		
+		Define showCpus As Button
+		showCpus.setup( 10, True, 125, 125, 175, BackgroundColor, "Villas", 120 ,showUsinas.x,showPropostas.y+showPropostas.image.Height)
+		
+		Define showHistorico As Button
+		showHistorico.setup( 10, True, 125, 125, 175, BackgroundColor, "Meu Historico", 120 ,showUsinas.x,showCpus.y+showCpus.image.Height)
+		//fim Menu
+		
+		//Menu de Acoes
+		Define novaProposta As Button
+		novaProposta.setup( 10, True, 125, 255, 175, BackgroundColor, "Cria Proposta", 120 ,150,5)
+		Define cancelProposta As Button		
+		cancelProposta.setup( 10, True, 125, 255, 175, BackgroundColor, "Cancela Proposta", 120 ,novaProposta.image.X+novaProposta.image.width,novaProposta.image.Y)
+		Define investir As Button
+		investir.setup( 10, True, 125, 255, 175, BackgroundColor, "Investimento", 120 ,cancelProposta.image.X+cancelProposta.image.Width,cancelProposta.image.Y)
+		Define financiar As Button
+		financiar.setup( 10, True, 125, 255, 175, BackgroundColor, "Financiamento", 120 ,investir.image.X+investir.image.Width,investir.image.Y)				
+		//fim menu
+		
+		SetFont(Fonts.Arial,8,False,False,False)
+		atualizaPainels(game,cpus,minhaVilla,financiamentos, pespectivas , investimentos , propostas,grafico)			
+		
+		//Start Game Prototype
+		//50 frames um dia e 30 dias um mes
+		Var frames As Integer = 0			
+		Var showPainelAt As Point
+		
+		//Controle de info de usinas
+		Var showingUsina As Integer = 0
+				
+		While(True)
+			If(IsKeyDown("p"))Then
+				game.isPlaying = Not game.isPlaying
+			End If
+			If(usina1.isOver() And Not infoUsina.isVisible)Then
+				showingUsina = 1
+				mostraPainelInfoUsina(game,infoUsina,game.copyUsina(1), usina1.x, usina1.y - 105)				
+			Else If(Not usina1.isOver() And infoUsina.isVisible And showingUsina = 1)Then
+				infoUsina.apagar()				
+			End If
+			
+			If(usina2.isOver() And Not infoUsina.isVisible)Then
+				showingUsina = 2
+				mostraPainelInfoUsina(game,infoUsina,game.copyUsina(2), usina2.x, usina2.y - 105)			
+			Else If(Not usina2.isOver() And infoUsina.isVisible And showingUsina = 2)Then
+				infoUsina.apagar()
+			End If
+			
+			If(usina3.isOver() And Not infoUsina.isVisible)Then
+				showingUsina = 3
+				mostraPainelInfoUsina(game,infoUsina,game.copyUsina(3), usina3.x, usina3.y - 105)			
+			Else If(Not usina3.isOver() And infoUsina.isVisible And showingUsina = 3)Then
+				infoUsina.apagar()
+			End If
+			
+			If(usina4.isOver() And Not infoUsina.isVisible)Then
+				showingUsina = 4
+				mostraPainelInfoUsina(game,infoUsina,game.copyUsina(4), usina4.x, usina4.y - 105)			
+			Else If(Not usina4.isOver() And infoUsina.isVisible And showingUsina = 4)Then
+				infoUsina.apagar()
+			End If
+			
+			If(usina5.isOver() And Not infoUsina.isVisible)Then
+				showingUsina = 5
+				mostraPainelInfoUsina(game,infoUsina,game.copyUsina(5), usina5.x, usina5.y - 105)			
+			Else If(Not usina5.isOver() And infoUsina.isVisible And showingUsina = 5)Then
+				infoUsina.apagar()
+			End If
+			
+			If(MouseClicks = 1) Then							
+				//Menu
+				If(LeftPressed) Then
+					showPainelAt.X = 220
+					showPainelAt.y = 50
+					Else If(RightPressed) Then
+						showPainelAt.X = 633
+						showPainelAt.y = 51
+				End If
+				If(showHistorico.isClick()) Then					
+					apagaPaineis(game,painelsToErase,showPainelAt)
+					showPainelAt.X = 633
+					showPainelAt.Y = 51
+					apagaPaineis(game,painelsToErase,showPainelAt)
+					mostraPainelGrafico(game,grafico,game.jogador.villa.historico,220,50)
+				End If
+				
+				If(showMinhaVilla.isClick()) Then
+					apagaPaineis(game,painelsToErase,showPainelAt)					
+					mostraPainelMinhaVilla(game,minhaVilla,showPainelAt.X,showPainelAt.Y)
+				End If
+				
+				If(showUsinas.isClick())Then
+					apagaPaineis(game,painelsToErase,showPainelAt)
+					mostraPainelUsina(game,usinas,showPainelAt.X,showPainelAt.Y)					
+				End If
+				
+				If(showFinanciamentos.isClick())Then
+					apagaPaineis(game,painelsToErase,showPainelAt)
+					mostraPainelFinanciamentos(game,financiamentos,showPainelAt.X,showPainelAt.Y)					
+				End If
+				
+				If(showPespectivas.isClick())Then
+					apagaPaineis(game,painelsToErase,showPainelAt)
+					mostraPainelPespectivas(game,pespectivas,showPainelAt.X,showPainelAt.Y)					
+				End If
+				
+				If(showInvestimentos.isClick())Then
+					apagaPaineis(game,painelsToErase,showPainelAt)
+					mostraPainelInvestimentos(game,investimentos,showPainelAt.X,showPainelAt.Y)					
+				End If
+				
+				If(showPropostas.isClick())Then
+					apagaPaineis(game,painelsToErase,showPainelAt)
+					mostraPainelPropostas(game,propostas,showPainelAt.X,showPainelAt.Y)					
+				End If
+				
+				If(showCpus.isClick())Then
+					apagaPaineis(game,painelsToErase,showPainelAt)
+					mostraPainelCpus(game,cpus,showPainelAt.X,showPainelAt.Y)				
+				End If
+				
+				
+				//fim menu
+				
+				
+				If(novaProposta.isClick()) Then
+					Define villas As Villa[game.pcVillas.Count]					
+					propostaId = game.jogador.realizaProposta(game,propostaId+1)
+					atualizaPainels(game,cpus,minhaVilla,financiamentos, pespectivas, investimentos , propostas,grafico)									
+				End If		
+				
+				If(cancelProposta.isClick()) Then					
+					game.jogador.cancelaProposta(game)
+					atualizaPainels(game,cpus,minhaVilla,financiamentos, pespectivas, investimentos , propostas,grafico)					
+				End If	
+				If(investir.isClick()) Then					
+					game.jogador.novoInvestimento(game)
+					atualizaPainels(game,cpus,minhaVilla,financiamentos, pespectivas, investimentos , propostas,grafico)					
+				End If						
+				
+				If(financiar.isClick()) Then					
+					financiamentoId = game.jogador.pedeFinanciamento(game,financiamentoId+1)
+					atualizaPainels(game,cpus,minhaVilla,financiamentos, pespectivas, investimentos , propostas,grafico)					
+				End If	
+				
+				//Usinas
+				If(usina1.isClick()) Then					
+					game.jogador.adicionaUsina(game.copyUsina(1))					
+					If(usinas.isVisible)Then
+						game.jogador.villa.mostraUsinas(usinas)				
+					End If
+				End If
+				
+				If(usina2.isClick()) Then
+					game.jogador.adicionaUsina(game.copyUsina(2))
+					If(usinas.isVisible)Then
+						game.jogador.villa.mostraUsinas(usinas)				
+					End If
+				End If
+				
+				If(usina3.isClick()) Then
+					game.jogador.adicionaUsina(game.copyUsina(3))
+					If(usinas.isVisible)Then
+						game.jogador.villa.mostraUsinas(usinas)				
+					End If
+				End If
+				
+				If(usina4.isClick()) Then
+					game.jogador.adicionaUsina(game.copyUsina(4))
+					If(usinas.isVisible)Then
+						game.jogador.villa.mostraUsinas(usinas)				
+					End If
+				End If
+				
+				If(usina5.isClick()) Then
+					game.jogador.adicionaUsina(game.copyUsina(5))
+					If(usinas.isVisible)Then
+						game.jogador.villa.mostraUsinas(usinas)				
+					End If
+				End If
+				
+				While MouseClicks = 1 
+					DoEvents()
+				End While
+				
+				ClearMouseEvents()
+
+			End If	
+			If(game.isPlaying) Then
+				barratempo.atualizaProgress(ConvertToDecimal(frames)/ConvertToDecimal(600),game.mesAtual)
+				frames+=1								
+				If(frames = 300 Or frames = 600)Then //Fim de Mes
+					game.jogador.checkPropostas(game.mesAtual)
+					game.banco.analisaFinanciamentos(game.mesAtual,2)				
+					For i=1 To game.pcVillas.Count
+						game.getPcVillaById(i).analisaPropostas(game,game.mesAtual,2)
+						propostaId = game.getPcVillaById(i).realizaProposta(game,propostaId)
+						game.getPcVillaById(i).analisaUsina(game)
+					
+					Next
+					If(frames = 600) Then
+						game.finalizaMes()
+						frames=0	
+						barratempo.desenhaBarra()
+					End If
+					atualizaPainels(game,cpus,minhaVilla,financiamentos, pespectivas, investimentos , propostas,grafico)
+				End If		
+				If(frames Mod 200 = 0) Then
+					letreiro.troca()
+				End If
+				//tempo.imprime(game.mesAtual+" : "+frames,Colors.Red,0)			
+			End If
+			delay(5)
+		End While
+		//End Game
+	End Method	
+	
+	Method mostraPainelLogs(game As Game, painel As Painel) 
+		painel.setup(2,ScreenHeight()-20,ScreenWidth()-4,1,19,Colors.White)
+		painel.windowBackground = game.windowBackground
+		painel.imprime("Log de Acoes",Colors.White,0)		
+	End Method
+	
+	Method mostraPainelPropostas(game As Game, painel As Painel, x As Decimal, y As Decimal)
+		painel.setup(x,y,200,10,15,Colors.DarkKhaki)
+		painel.windowBackground = game.windowBackground
+		painel.imprime("Minhas Propostas de Carbono",Colors.White,0)
+		
+		game.jogador.villa.mostraPropostas(painel,game)
+	End Method
+	
+	Method mostraPainelInvestimentos(game As Game, painel As Painel, x As Decimal, y As Decimal)
+		painel.setup(x,y,200,10,15,Colors.DarkGoldenrod)
+		painel.windowBackground = game.windowBackground
+		painel.imprime("Investimentos:",Colors.White,0)
+		game.jogador.villa.mostraInvestimento(painel)
+	End Method
+	
+	Method mostraPainelPespectivas(game As Game, painel As Painel , x As Decimal, y As Decimal)		
+		Var i As Integer
+		Var startLine As Integer=1
+		painel.setup(x,y,200,10,15,Colors.DarkGray)
+		painel.windowBackground = game.windowBackground
+		painel.imprime("Financiamentos Perspectiva:",Colors.White,0)
+		For i=1 To game.jogador.villa.financiamentos.Count
+			If(game.jogador.villa.getFinanciamentoByIndex(i).getStatusIndex() = game.jogador.villa.getFinanciamentoByIndex(i).STATUS_ACEITO) Then
+				startLine=game.jogador.villa.getFinanciamentoByIndex(i).mostraPespectiva(painel,startLine)
+			End If
+		Next
+	End Method
+	
+	Method mostraPainelFinanciamentos(game As Game, painel As Painel , x As Decimal, y As Decimal)						
+		painel.setup(x,y,200,5,15,Colors.DarkCyan)
+		painel.windowBackground = game.windowBackground
+		painel.imprime("Banco Financiamentos:",Colors.White,0)	
+		
+		game.banco.mostraFinanciamentos(game,painel)
+	End Method
+	
+	Method mostraPainelCpus(game As Game, painel As Painel[], x As Decimal, y As Decimal)		
+		Var i As Integer
+		Var linha As Integer = 0
+		Var coluna As Integer = 0
+		For i=1 To game.pcVillas.Count			
+			painel[i].setup(x+ (204*(coluna)),y+(200*(linha)),200,11,15,Colors.DarkGreen)
+			painel[i].windowBackground = game.windowBackground
+			painel[i].imprime("Villa:",Colors.White,0)
+			mostraDadosVilla(game.getPcVillaByIndex(i).villa,painel[i])
+			coluna+=1
+			If(coluna Mod 2 =0) Then
+				linha+=1
+				coluna=0
+			End If
+		Next
+	End Method
+	
+	Method mostraPainelUsina(game As Game, painel As Painel, x As Decimal, y As Decimal)
+		painel.setup(x,y,200,7,15,Colors.DarkRed)
+		painel.windowBackground = game.windowBackground	
+		painel.imprime("Usinas:",Colors.White,0)
+		game.jogador.villa.mostraUsinas(painel)
+	End Method
+	
+	Method mostraPainelMinhaVilla(game As Game, painel As Painel, x As Decimal, y As Decimal)
+		painel.setup(x,y,200,11,15,Colors.DarkBlue)
+		painel.windowBackground = game.windowBackground
+		painel.imprime("Minha Villa:",Colors.White,0)
+		mostraDadosVilla(game.jogador.villa,painel)
+	End Method
+	
+	Method mostraPainelInfoUsina(game As Game, painel As Painel,usina As Usina, x As Decimal, y As Decimal)
+		painel.setup(x,y,150,6,15,Colors.DarkGoldenrod)
+		painel.windowBackground = game.windowBackground
+		Var linha As Integer= 0	
+		painel.imprime("Usina: "+usina.nome,Colors.White,linha)
+		linha+=1
+		painel.imprime("  Custo Inicial: "+usina.custoInicial,Colors.White,linha)
+		linha+=1
+		painel.imprime("  Custo Mensal: "+usina.custoMensal,Colors.White,linha)
+		linha+=1
+		painel.imprime("  Energia Produzida: "+usina.energiaProduzida,Colors.White,linha)
+		linha+=1
+		painel.imprime("  Grau de poluicao: "+usina.grauPoluicao,Colors.White,linha)
+		linha+=1
+		painel.imprime(" ",Colors.White,linha)				
+		linha+=1
+	End Method
+	
+	Method mostraPainelGrafico(game As Game,painel As Painel ,historico As Historico , x As Decimal, y As Decimal)
+		painel.setup(X, Y , 800 ,1 , 500 ,Colors.DarkGray)
+		painel.windowBackground = game.windowBackground
+		historico.montaPainel(painel)
+		historico.desenhaGraficos(painel)
+	End Method
+	
+	Method apagaPaineis(game As Game , paineis As Painel[], point As Point)
+		Var i As Integer	
+		
+		For i=1 To ArrayLength(paineis)-game.pcVillas.Count+1 // So ate o primeiro das villas
+			If(paineis[i].isVisible And (paineis[i].X = point.X And paineis[i].Y = point.Y )) Then
+				paineis[i].apagar()
+			End If			
+		Next	
+		//Verifica se o primeiro das villas esta visivel
+		If( Not paineis[i-1].isVisible And (paineis[i-1].X = point.X And paineis[i-1].Y = point.Y )) Then
+			For i=i To ArrayLength(paineis)				
+				paineis[i].apagar()				
+			Next
+		End If
+		
+	End Method
+	
+	Method atualizaPainels(game As Game , cpus As Painel[],minhaVilla As Painel , financiamentos As Painel , pespectivas As Painel , investimentos As Painel , propostas As Painel,grafico As Painel)
+		Var i As Integer
+		Var startLine As Integer	
+		If(grafico.isVisible) Then
+			mostraPainelGrafico(game,grafico,game.jogador.villa.historico,grafico.X,grafico.Y)
+			Return
+		End If
+		
+		For i=1 To game.pcVillas.Count				
+			If(cpus[i].isVisible)Then
+				mostraDadosVilla(game.getPcVillaByIndex(i).villa,cpus[i])
+			End If
+		Next
+		If(minhaVilla.isVisible)Then
+			mostraDadosVilla(game.jogador.villa,minhaVilla)
+		End If
+		If(financiamentos.isVisible) Then
+			game.banco.mostraFinanciamentos(game,financiamentos)
+		End If
+		
+		If(pespectivas.isVisible) Then
+			startLine=1
+			pespectivas.clear()
+			For i=1 To game.jogador.villa.financiamentos.Count
+				If(game.jogador.villa.getFinanciamentoByIndex(i).getStatusIndex() = game.jogador.villa.getFinanciamentoByIndex(i).STATUS_ACEITO) Then
+					startLine=game.jogador.villa.getFinanciamentoByIndex(i).mostraPespectiva(pespectivas,startLine)
+				End If
+			Next
+		End If
+		
+		If(investimentos.isVisible) Then
+			game.jogador.villa.mostraInvestimento(investimentos)
+		End If
+		
+		If(propostas.isVisible) Then
+			game.jogador.villa.mostraPropostas(propostas,game)
+		End If			
+		
+		
+	End Method
+End Program
